@@ -7,7 +7,7 @@ const links = [
   { href: "/", label: "Today" },
   { href: "/stream", label: "Stream" },
   { href: "/subjects", label: "Subjects" },
-  { href: "/ask", label: "Claude" },
+  { href: "/ask", label: "Assistant" },
 ];
 
 export async function Nav() {

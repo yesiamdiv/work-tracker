@@ -1,13 +1,12 @@
 "use server";
 
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
 import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
-import { ai, aiErrorMessage, assertUsable, MODEL, textOf } from "@/lib/ai";
+import { aiErrorMessage, askJson, askText } from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
 import { getSession } from "@/lib/session";
 import { subjectFilterIds } from "@/lib/subjects";
@@ -134,22 +133,12 @@ export async function summarise(scope: SummaryScope): Promise<AiResult<string>> 
     const { heading, lines } = await gather(scope);
     if (!lines.length) return "Nothing logged for this yet.";
 
-    const message = await ai().messages.create({
-      model: MODEL,
-      max_tokens: 16000,
+    return askText({
       system: SUMMARY_SYSTEM,
-      // medium is Opus 5.5's default; a summary of a short log does not need more.
-      output_config: { effort: "medium" },
-      messages: [
-        {
-          role: "user",
-          content: `${heading}\n\nEntries, oldest first:\n\n${lines.join("\n")}`,
-        },
-      ],
+      user: `${heading}\n\nEntries, oldest first:\n\n${lines.join("\n")}`,
+      tier: "standard",
+      effort: "medium",
     });
-
-    assertUsable(message);
-    return textOf(message);
   });
 }
 
@@ -197,16 +186,13 @@ export async function improveEntry(text: string): Promise<AiResult<string>> {
     const original = text.trim();
     if (original.length < 3) throw new Error("Nothing to improve yet.");
 
-    const message = await ai().messages.create({
-      model: MODEL,
-      max_tokens: 16000,
+    // The cheap tier: rewriting one line needs no reasoning depth.
+    const improved = await askText({
       system: IMPROVE_SYSTEM,
-      output_config: { effort: "low" },
-      messages: [{ role: "user", content: original }],
+      user: original,
+      tier: "cheap",
+      maxTokens: 2000,
     });
-
-    assertUsable(message);
-    const improved = textOf(message);
     if (!improved) throw new Error("Got an empty rewrite back.");
     return improved;
   });
@@ -287,27 +273,15 @@ export async function proposeFromPrompt(
           .join("\n")
       : "(none yet)";
 
-    const message = await ai().messages.parse({
-      model: MODEL,
-      max_tokens: 16000,
-      system: PROPOSE_SYSTEM,
-      output_config: {
+    return askJson(
+      {
+        system: PROPOSE_SYSTEM,
+        user: `Existing subjects:\n${roster}\n\nThe note:\n${text}`,
+        tier: "standard",
         effort: "high",
-        format: zodOutputFormat(ProposalSchema),
       },
-      messages: [
-        {
-          role: "user",
-          content: `Existing subjects:\n${roster}\n\nThe note:\n${text}`,
-        },
-      ],
-    });
-
-    assertUsable(message);
-    if (!message.parsed_output) {
-      throw new Error("Could not read a proposal back. Try rewording the note.");
-    }
-    return message.parsed_output;
+      ProposalSchema,
+    );
   });
 }
 

@@ -77,3 +77,24 @@ subject list and detail, both creation forms. `/stream` is a placeholder.
 Next up is step 3 — the filterable stream — but **use this for a week first.**
 The filters worth building are the ones you actually reach for, and the model's
 gaps only show up in use.
+
+## The assistant
+
+Six providers, one seam. Set `AI_PROVIDER` in `.env.local` to `claude`,
+`openai`, `gemini`, `deepseek`, `openrouter` or `ollama`, and set that
+provider's key. The `/ask` page shows which are ready and what each costs per
+100 summaries.
+
+Claude is called through the Anthropic SDK and is the only one that constrains
+JSON to the schema server-side. The other five expose OpenAI-compatible
+chat-completions endpoints — Gemini included — so they share one adapter; for
+those, the schema goes in the prompt and the reply is validated locally with one
+retry.
+
+Two tiers per provider: a cheap model for one-line rewrites, a stronger one for
+summaries and proposals. `AI_MODEL` overrides both, which OpenRouter needs in
+practice and is the easy way to pin an Ollama tag.
+
+**Ollama is free but local**, so it does not work once deployed, and on CPU a
+rewrite takes ~25s against a 4B model. Fine for trying things out; Gemini Flash
+is the cheapest option that works in production.
