@@ -145,6 +145,7 @@ export async function subjectList() {
       status: subjects.status,
       colour: subjects.colour,
       parentId: subjects.parentId,
+      description: subjects.description,
       /**
        * Rolls up children, so a parent's count matches what opening it shows.
        * `sc` is the subject a task is tagged with: either this row, or a child

@@ -2,7 +2,7 @@ import { and, count, eq, gte, isNull, lt, notInArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
-import { events, subjects, tasks } from "@/db/schema";
+import { events, subjects, taskSubjects, tasks } from "@/db/schema";
 
 /** A task with no entries for this many days is considered stalled. */
 export const STALE_DAYS = 7;
@@ -174,4 +174,68 @@ export async function kindBreakdown(days = 30) {
       .groupBy(events.kind)
       .orderBy(sql`count(*) desc`),
   );
+}
+
+/**
+ * Entries per week per subject, for the sparkline on the subjects browser.
+ *
+ * Counts are attributed to the subject a task is tagged with, then rolled up
+ * into parents in JS — a parent's line has to include its children's work, and
+ * doing that in SQL would need a self-join per row for no benefit.
+ */
+export async function subjectWeeklyActivity(weeks = 12) {
+  return withRetry("subjectWeeklyActivity", async () => {
+    const since = daysAgo(weeks * 7);
+
+    const [rows, parents] = await Promise.all([
+      db
+        .select({
+          subjectId: taskSubjects.subjectId,
+          week: sql<string>`to_char(date_trunc('week', "events"."occurred_at"), 'YYYY-MM-DD')`,
+          n: count(),
+        })
+        .from(events)
+        .innerJoin(taskSubjects, eq(taskSubjects.taskId, events.taskId))
+        .where(gte(events.occurredAt, since))
+        .groupBy(taskSubjects.subjectId, sql`date_trunc('week', "events"."occurred_at")`),
+      db
+        .select({ id: subjects.id, parentId: subjects.parentId })
+        .from(subjects),
+    ]);
+
+    // The week buckets, oldest first, so every subject's series lines up.
+    const buckets: string[] = [];
+    const monday = (d: Date) => {
+      const x = new Date(d);
+      const day = (x.getDay() + 6) % 7; // Monday = 0
+      x.setDate(x.getDate() - day);
+      return x.toISOString().slice(0, 10);
+    };
+    for (let i = weeks - 1; i >= 0; i--) buckets.push(monday(daysAgo(i * 7)));
+
+    const index = new Map(buckets.map((b, i) => [b, i]));
+    const series = new Map<string, number[]>();
+    const blank = () => new Array(buckets.length).fill(0) as number[];
+
+    for (const s of parents) series.set(s.id, blank());
+
+    for (const r of rows) {
+      const at = index.get(r.week);
+      if (at === undefined) continue;
+      const own = series.get(r.subjectId);
+      if (own) own[at] += Number(r.n);
+    }
+
+    // Roll children into their parents.
+    for (const s of parents) {
+      if (!s.parentId) continue;
+      const child = series.get(s.id);
+      const parent = series.get(s.parentId);
+      if (child && parent) {
+        for (let i = 0; i < parent.length; i++) parent[i] += child[i];
+      }
+    }
+
+    return { weeks: buckets, series };
+  });
 }

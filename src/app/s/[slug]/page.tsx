@@ -15,7 +15,7 @@ import {
 } from "@/components/ui";
 import { deleteSubject, subjectDeleteImpact } from "@/app/actions";
 import { summariseSubject } from "@/app/ai-actions";
-import { aiConfigured } from "@/lib/ai";
+import { providerReady } from "@/lib/ai";
 import { subjectBySlug, subjectRefs, subjectTasks } from "@/db/queries";
 import { refs as refsTable } from "@/db/schema";
 
@@ -126,7 +126,7 @@ export default async function SubjectPage({
         )}
       </header>
 
-      {aiConfigured() && tasks.length > 0 && (
+      {providerReady() && tasks.length > 0 && (
         <div className="mb-10">
           <AiSummary
             title="Where this stands"

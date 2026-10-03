@@ -215,11 +215,20 @@ saving an event is never slow.
       narrowed view is bookmarkable
 - [x] **6** — Delete for subjects, tasks and entries, two-step with the cascade
       spelled out before confirming
-- [ ] **7** — AI, first group. Needs no retrieval infrastructure, so it comes
-      now: summarise a day / week / month / subject / task; "improve this" on
-      the capture box, shown as a before-and-after, never a silent overwrite;
+- [x] **7** — AI, first group: summarise a day / week / month / subject / task;
+      "improve wording" shown as a before-and-after, never a silent overwrite;
       prompt-to-create, proposing a subject, task and entries for approval
       before anything is written
+- [x] **7b** — Six providers behind one seam, chosen with `AI_PROVIDER`.
+      Claude goes through the Anthropic SDK; ChatGPT, Gemini, DeepSeek,
+      OpenRouter and Ollama all speak OpenAI-compatible chat completions, so
+      they are one adapter with a different base URL rather than five
+      integrations. Claude constrains JSON to the schema server-side; the
+      others get the schema in the prompt and are validated locally with one
+      retry. Model tiers dropped from Opus to Sonnet 5.5 / Haiku 4.5 on
+      request, to cut per-call cost
+- [x] **7c** — Subjects browser: a scannable name tree with 12-week sparklines
+      on the left, full detail for the selected subject on the right
 - [ ] **8** — File uploads on an entry. Not Google Drive: a published Google app
       requesting a Drive scope is blocked pending verification, and the Testing
       alternative expires refresh tokens weekly. Vercel Blob instead, or R2 if

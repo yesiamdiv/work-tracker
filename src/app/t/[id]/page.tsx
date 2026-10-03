@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { deleteTask, taskDeleteImpact } from "@/app/actions";
 import { summariseTask } from "@/app/ai-actions";
-import { aiConfigured } from "@/lib/ai";
+import { providerReady } from "@/lib/ai";
 import { taskDetail } from "@/db/queries";
 import { byDay } from "@/lib/utils";
 
@@ -126,7 +126,7 @@ export default async function TaskPage({
         )}
       </header>
 
-      {aiConfigured() && events.length >= 3 && (
+      {providerReady() && events.length >= 3 && (
         <div className="mb-8">
           <AiSummary
             title="What has happened so far"
