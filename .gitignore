@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env.local
+.env*.local
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+.DS_Store
+
+# Local PGlite database directory (the POC's zero-setup Postgres).
+.pglite/
+
+# Scratch probe scripts.
+probe.mts
+ver.mts
+inspect.mts
