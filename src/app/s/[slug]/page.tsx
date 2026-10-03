@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AiSummary } from "@/components/ai-summary";
 import { DeleteControl } from "@/components/delete-control";
 import { TaskRow } from "@/components/task-row";
 import {
@@ -13,6 +14,8 @@ import {
   SectionLabel,
 } from "@/components/ui";
 import { deleteSubject, subjectDeleteImpact } from "@/app/actions";
+import { summariseSubject } from "@/app/ai-actions";
+import { aiConfigured } from "@/lib/ai";
 import { subjectBySlug, subjectRefs, subjectTasks } from "@/db/queries";
 import { refs as refsTable } from "@/db/schema";
 
@@ -122,6 +125,21 @@ export default async function SubjectPage({
           </p>
         )}
       </header>
+
+      {aiConfigured() && tasks.length > 0 && (
+        <div className="mb-10">
+          <AiSummary
+            title="Where this stands"
+            cta="Summarise this subject"
+            cached={subject.stateSummary}
+            cachedAt={subject.stateSummaryAt}
+            run={async () => {
+              "use server";
+              return summariseSubject(subject.id);
+            }}
+          />
+        </div>
+      )}
 
       <section className="mb-10">
         <SectionLabel>Open tasks</SectionLabel>

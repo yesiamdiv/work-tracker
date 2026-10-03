@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AiSummary } from "@/components/ai-summary";
 import { DeleteControl } from "@/components/delete-control";
 import { EventItem } from "@/components/event-item";
 import { TaskEventBox } from "@/components/task-event-box";
@@ -14,6 +15,8 @@ import {
   SectionLabel,
 } from "@/components/ui";
 import { deleteTask, taskDeleteImpact } from "@/app/actions";
+import { summariseTask } from "@/app/ai-actions";
+import { aiConfigured } from "@/lib/ai";
 import { taskDetail } from "@/db/queries";
 import { byDay } from "@/lib/utils";
 
@@ -122,6 +125,21 @@ export default async function TaskPage({
           </div>
         )}
       </header>
+
+      {aiConfigured() && events.length >= 3 && (
+        <div className="mb-8">
+          <AiSummary
+            title="What has happened so far"
+            cta="Summarise this task"
+            cached={task.summary}
+            cachedAt={task.summaryAt}
+            run={async () => {
+              "use server";
+              return summariseTask(task.id);
+            }}
+          />
+        </div>
+      )}
 
       <SectionLabel hint="Oldest first. Links found in an entry's text are saved with it.">
         Log

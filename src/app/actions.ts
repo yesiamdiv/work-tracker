@@ -161,6 +161,9 @@ export async function captureEvent(input: {
   taskId: string;
   text: string;
   occurredAt?: Date;
+  /** Override the kind the text would imply — used when a caller already knows. */
+  kind?: (typeof events.kind.enumValues)[number];
+  outcome?: (typeof events.outcome.enumValues)[number] | null;
 }) {
   await requireUser();
 
@@ -174,8 +177,8 @@ export async function captureEvent(input: {
     .insert(events)
     .values({
       taskId: input.taskId,
-      kind: parsed.kind,
-      outcome: parsed.outcome,
+      kind: input.kind ?? parsed.kind,
+      outcome: input.outcome ?? parsed.outcome,
       body: parsed.body,
       occurredAt: input.occurredAt ?? new Date(),
     })

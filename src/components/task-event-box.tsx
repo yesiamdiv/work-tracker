@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { captureEvent } from "@/app/actions";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
+import { ImproveButton } from "@/components/improve-button";
 import { Button, Label, Meta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +72,7 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
             )}
           </Meta>
         )}
+        <ImproveButton text={text} onAccept={setText} />
         <Meta className="ml-auto">Enter to save</Meta>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { captureEvent, inboxTask } from "@/app/actions";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
+import { ImproveButton } from "@/components/improve-button";
 import { Label, Meta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,8 @@ export function CaptureBox({
             </option>
           )}
         </select>
+
+        <ImproveButton text={text} onAccept={setText} />
 
         <span className="ml-auto">
           {pending ? (
