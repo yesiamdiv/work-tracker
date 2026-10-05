@@ -2,6 +2,25 @@ import NextAuth from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 
+/**
+ * Auth.js builds its callback URL by handing AUTH_URL to `new URL()`, so a
+ * value with no scheme throws `ERR_INVALID_URL` and every page 500s with
+ * nothing but a digest to go on. A bare hostname is the obvious thing to paste
+ * into a dashboard field, so accept it rather than crash on it.
+ */
+function normaliseAuthUrl() {
+  const raw = process.env.AUTH_URL?.trim();
+  if (!raw) return;
+  if (/^https?:\/\//i.test(raw)) return;
+  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(raw) ? "http" : "https";
+  process.env.AUTH_URL = `${scheme}://${raw}`;
+  console.warn(
+    `[auth] AUTH_URL had no scheme; reading it as ${process.env.AUTH_URL}`,
+  );
+}
+
+normaliseAuthUrl();
+
 const allowed = (process.env.ALLOWED_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
