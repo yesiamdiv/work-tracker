@@ -152,7 +152,7 @@ export default async function TaskPage({
               <h3 className="mb-2 text-[13px] text-muted">{day.label}</h3>
               <div className="divide-y divide-line rounded-xs border border-line">
                 {day.rows.map((e) => (
-                  <EventItem key={e.id} event={e} />
+                  <EventItem key={e.id} event={e} canAttach />
                 ))}
               </div>
             </section>

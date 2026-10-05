@@ -1,7 +1,14 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
+import {
+  attachments,
+  events,
+  refs,
+  subjects,
+  taskSubjects,
+  tasks,
+} from "@/db/schema";
 import { withRetry } from "@/db/retry";
 import { subjectFilterIds } from "@/lib/subjects";
 
@@ -95,7 +102,7 @@ export async function taskDetail(taskId: string) {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return null;
 
-  const [stream, taskRefs, linked] = await Promise.all([
+  const [stream, taskRefs, linked, files] = await Promise.all([
     db
       .select()
       .from(events)
@@ -113,6 +120,11 @@ export async function taskDetail(taskId: string) {
       .from(taskSubjects)
       .innerJoin(subjects, eq(subjects.id, taskSubjects.subjectId))
       .where(eq(taskSubjects.taskId, taskId)),
+    db
+      .select()
+      .from(attachments)
+      .innerJoin(events, eq(events.id, attachments.eventId))
+      .where(eq(events.taskId, taskId)),
   ]);
 
   // Refs recorded against an event are shown inline with it, not in the header.
@@ -124,10 +136,21 @@ export async function taskDetail(taskId: string) {
     refsByEvent.set(r.eventId, list);
   }
 
+  const filesByEvent = new Map<string, (typeof files)[number]["attachments"][]>();
+  for (const row of files) {
+    const list = filesByEvent.get(row.attachments.eventId) ?? [];
+    list.push(row.attachments);
+    filesByEvent.set(row.attachments.eventId, list);
+  }
+
   return {
     task,
     subjects: linked.sort((a, b) => b.isPrimary - a.isPrimary),
-    events: stream.map((e) => ({ ...e, refs: refsByEvent.get(e.id) ?? [] })),
+    events: stream.map((e) => ({
+      ...e,
+      refs: refsByEvent.get(e.id) ?? [],
+      attachments: filesByEvent.get(e.id) ?? [],
+    })),
     taskRefs: taskRefs.filter((r) => !r.eventId),
   };
   });

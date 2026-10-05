@@ -229,10 +229,15 @@ saving an event is never slow.
       request, to cut per-call cost
 - [x] **7c** — Subjects browser: a scannable name tree with 12-week sparklines
       on the left, full detail for the selected subject on the right
-- [ ] **8** — File uploads on an entry. Not Google Drive: a published Google app
-      requesting a Drive scope is blocked pending verification, and the Testing
-      alternative expires refresh tokens weekly. Vercel Blob instead, or R2 if
-      screen recordings are in scope
+- [x] **8** — File uploads on an entry, in **Google Drive** after all.
+      The earlier block was caused by *publishing* the OAuth app: a published
+      app requesting a Drive scope needs Google verification. On **Testing**
+      status no verification is required, and Drive works — at the cost of a
+      refresh token that lapses every 7 days, so signing in again weekly is
+      expected. Keep the app on Testing; publishing it breaks Drive.
+      Bytes go browser → Drive directly, never through a function, because the
+      request body limit is smaller than a screen recording. Files land in
+      `Work Tracker/<subject>/<task>` so they stay navigable without the app
 - [ ] **9** — Stats page, `Cmd-K` palette, Friday digest
 - [ ] **10** — AI, second group. Open-ended questions over the whole history,
       which needs embeddings and pgvector. Deferred deliberately: it only earns

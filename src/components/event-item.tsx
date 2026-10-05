@@ -1,6 +1,8 @@
 import { deleteEvent } from "@/app/actions";
 import { DeleteControl } from "@/components/delete-control";
-import type { Event, Ref } from "@/db/schema";
+import { AttachFiles } from "@/components/attach-files";
+import { AttachmentList } from "@/components/attachment-list";
+import type { Attachment, Event, Ref } from "@/db/schema";
 import { KIND_LABEL } from "@/lib/capture";
 import { ExtLink, Meta } from "@/components/ui";
 import { timeLabel } from "@/lib/utils";
@@ -37,7 +39,13 @@ function RefLink({ link }: { link: Ref }) {
   );
 }
 
-export function EventItem({ event }: { event: Event & { refs: Ref[] } }) {
+export function EventItem({
+  event,
+  canAttach = false,
+}: {
+  event: Event & { refs: Ref[]; attachments?: Attachment[] };
+  canAttach?: boolean;
+}) {
   const failed = event.outcome === "fail";
 
   return (
@@ -77,6 +85,12 @@ export function EventItem({ event }: { event: Event & { refs: Ref[] } }) {
             ))}
           </div>
         )}
+
+        {event.attachments && event.attachments.length > 0 && (
+          <AttachmentList items={event.attachments} />
+        )}
+
+        {canAttach && <AttachFiles eventId={event.id} />}
       </div>
     </article>
   );
