@@ -42,9 +42,27 @@ async function open(): Promise<{ db: Db; close: () => Promise<void> }> {
 async function main() {
   const { db, close } = await open();
 
+  /**
+   * Seeding is opt-in.
+   *
+   * The demo data was deleted from the real database once it had served its
+   * purpose, which left no subjects — and the "already seeded?" check below
+   * keys on exactly that. Without this flag, a later `npm run setup` would
+   * quietly put Acme Corp back into live data.
+   */
+  const seeding = process.argv.includes("--seed");
+
   const existing = await db.select({ id: subjects.id }).from(subjects).limit(1);
   if (existing.length) {
-    console.log("already seeded — nothing to do");
+    console.log("already has data — not seeding");
+    await close();
+    return;
+  }
+
+  if (!seeding) {
+    console.log(
+      "schema is ready. Pass --seed to add demo data (don't, on a real database).",
+    );
     await close();
     return;
   }
