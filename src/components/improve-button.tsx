@@ -38,6 +38,7 @@ export function ImproveButton({
   return (
     <>
       <button
+        type="button"
         onClick={go}
         disabled={pending || !ready}
         title={ready ? undefined : "Type a bit more first"}
@@ -54,6 +55,7 @@ export function ImproveButton({
           <p className="whitespace-pre-wrap text-body">{suggestion}</p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <button
+              type="button"
               onClick={() => {
                 onAccept(suggestion);
                 setSuggestion(null);
@@ -63,6 +65,7 @@ export function ImproveButton({
               Use it
             </button>
             <button
+              type="button"
               onClick={() => setSuggestion(null)}
               className="text-[13px] text-faint transition-colors hover:text-muted"
             >

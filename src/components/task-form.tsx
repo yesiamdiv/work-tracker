@@ -206,6 +206,7 @@ export function TaskForm({
           {pending ? "Saving…" : initial ? "Save changes" : "Create"}
         </Button>
         <button
+          type="button"
           onClick={() => router.back()}
           className="text-faint transition-colors hover:text-muted"
         >

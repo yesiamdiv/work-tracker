@@ -127,23 +127,35 @@ export function SubjectForm({
       </label>
 
       <div>
-        <Label>Dot</Label>
-        <div className="flex gap-2.5">
-          {COLOURS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setColour(c)}
-              aria-label={c}
-              className={`size-5 rounded-full border transition-colors ${
-                colour === c ? "border-line-strong" : "border-transparent"
-              }`}
-            >
-              <span
-                className="block size-[5px] translate-x-[7px] rounded-full opacity-70"
-                style={{ background: c }}
-              />
-            </button>
-          ))}
+        <Label>Dot colour</Label>
+        <p className="mb-2.5 text-[13px] text-faint">
+          Used only as a small dot beside the subject&rsquo;s name.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {COLOURS.map((c) => {
+            const on = colour === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColour(c)}
+                aria-label={`Colour ${c}`}
+                aria-pressed={on}
+                title={c}
+                className={`flex size-8 items-center justify-center rounded-xs border transition-colors ${
+                  on
+                    ? "border-accent bg-raised"
+                    : "border-line hover:border-line-strong hover:bg-raised"
+                }`}
+              >
+                {/* Filled and centred, so the swatch is actually legible. */}
+                <span
+                  className="block size-3.5 rounded-full"
+                  style={{ background: c }}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -164,6 +176,7 @@ export function SubjectForm({
           {pending ? "Saving…" : initial ? "Save changes" : "Create"}
         </Button>
         <button
+          type="button"
           onClick={() => router.back()}
           className="text-faint transition-colors hover:text-muted"
         >

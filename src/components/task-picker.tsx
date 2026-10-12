@@ -137,6 +137,7 @@ export function TaskPicker({
           <div className="border-b border-line p-2">
             <input
               ref={field}
+              aria-label="Search tasks, or type a new task name"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}

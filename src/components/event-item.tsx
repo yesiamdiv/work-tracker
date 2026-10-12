@@ -80,6 +80,7 @@ export function EventItem({
 
         <span className="ml-auto flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setEditing(true)}
             className="text-[13px] text-faint transition-colors hover:text-text"
           >

@@ -135,6 +135,7 @@ export function AiCompose() {
               {saving ? "Saving…" : "Save this"}
             </Button>
             <button
+              type="button"
               onClick={() => setProposal(null)}
               disabled={saving}
               className="text-[13px] text-faint transition-colors hover:text-muted"

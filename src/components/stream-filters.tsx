@@ -59,6 +59,7 @@ export function StreamFilters({
         <Label>Search the text of your entries</Label>
         <div className="flex gap-2">
           <input
+            aria-label="Search the text of your entries"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="e.g. reconnect, sleep current, ACME-4421"

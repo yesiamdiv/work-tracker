@@ -136,6 +136,7 @@ export function EventEditor({
           {pending ? "Saving…" : "Save"}
         </Button>
         <button
+          type="button"
           onClick={onDone}
           disabled={pending}
           className="text-[13px] text-faint transition-colors hover:text-muted"

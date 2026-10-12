@@ -47,6 +47,7 @@ export function AiSummary({
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <Label>{title}</Label>
         <button
+          type="button"
           onClick={go}
           disabled={pending}
           className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-50"

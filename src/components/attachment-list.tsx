@@ -40,6 +40,7 @@ export function AttachmentList({ items }: { items: Attachment[] }) {
           {removing === a.id ? (
             <span className="flex shrink-0 items-center gap-2.5">
               <button
+                type="button"
                 onClick={() =>
                   start(async () => {
                     const r = await removeAttachment(a.id);
@@ -53,6 +54,7 @@ export function AttachmentList({ items }: { items: Attachment[] }) {
                 {pending ? "Removing…" : "Delete from Drive"}
               </button>
               <button
+                type="button"
                 onClick={() => setRemoving(null)}
                 className="text-[12.5px] text-faint hover:text-muted"
               >
@@ -61,6 +63,7 @@ export function AttachmentList({ items }: { items: Attachment[] }) {
             </span>
           ) : (
             <button
+              type="button"
               onClick={() => setRemoving(a.id)}
               className="shrink-0 text-[12.5px] text-faint transition-colors hover:text-text"
             >

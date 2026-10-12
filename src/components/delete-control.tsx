@@ -61,6 +61,7 @@ export function DeleteControl({
   if (!asking) {
     return (
       <button
+        type="button"
         onClick={ask}
         className="text-[13px] text-faint transition-colors hover:text-text"
       >
@@ -75,6 +76,7 @@ export function DeleteControl({
         Delete {what}?{impact ? ` ${impact}` : ""}
       </Meta>
       <button
+        type="button"
         onClick={confirm}
         disabled={pending}
         className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] transition-opacity hover:opacity-80 disabled:opacity-50"
@@ -82,6 +84,7 @@ export function DeleteControl({
         {pending ? "Deleting…" : "Yes, delete"}
       </button>
       <button
+        type="button"
         onClick={() => setAsking(false)}
         disabled={pending}
         className="text-[13px] text-faint transition-colors hover:text-muted"
