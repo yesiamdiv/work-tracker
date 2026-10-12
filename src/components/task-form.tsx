@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { createTask } from "@/app/actions";
+import { createTask, updateTask } from "@/app/actions";
 import { Button, Input, Label, Select } from "@/components/ui";
-import type { tasks } from "@/db/schema";
+import { tasks } from "@/db/schema";
 
 type Type = (typeof tasks.type.enumValues)[number];
 
@@ -22,22 +22,37 @@ const TYPES: Type[] = [
   "other",
 ];
 
+export type TaskInitial = {
+  id: string;
+  title: string;
+  type: Type;
+  status: (typeof tasks.status.enumValues)[number];
+  description: string | null;
+  subjectIds: string[];
+};
+
 export function TaskForm({
   subjects,
   preselect,
+  initial,
 }: {
   subjects: { id: string; label: string }[];
   /** Ticked on arrival — set when coming from a subject's page. */
   preselect?: string;
+  /** Present when editing rather than creating. */
+  initial?: TaskInitial;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState<Type>("manual_test");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [type, setType] = useState<Type>(initial?.type ?? "manual_test");
+  const [status, setStatus] = useState(initial?.status ?? "in_progress");
   const [picked, setPicked] = useState<string[]>(
-    preselect && subjects.some((s) => s.id === preselect) ? [preselect] : [],
+    initial?.subjectIds ??
+      (preselect && subjects.some((s) => s.id === preselect) ? [preselect] : []),
   );
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [error, setError] = useState<string | null>(null);
 
   function toggle(id: string) {
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -45,14 +60,31 @@ export function TaskForm({
 
   function submit() {
     if (!title.trim() || pending) return;
+    setError(null);
     start(async () => {
-      const task = await createTask({
-        title: title.trim(),
-        type,
-        subjectIds: picked,
-        description: description.trim() || null,
-      });
-      router.push(`/t/${task.id}`);
+      try {
+        if (initial) {
+          await updateTask({
+            taskId: initial.id,
+            title: title.trim(),
+            type,
+            status,
+            subjectIds: picked,
+            description: description.trim() || null,
+          });
+          router.push(`/t/${initial.id}`);
+        } else {
+          const task = await createTask({
+            title: title.trim(),
+            type,
+            subjectIds: picked,
+            description: description.trim() || null,
+          });
+          router.push(`/t/${task.id}`);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not save");
+      }
     });
   }
 
@@ -78,6 +110,24 @@ export function TaskForm({
           ))}
         </Select>
       </label>
+
+      {initial && (
+        <label className="block">
+          <Label>Status</Label>
+          <Select
+            value={status}
+            onChange={(e) =>
+              setStatus(e.target.value as TaskInitial["status"])
+            }
+          >
+            {tasks.status.enumValues.map((v) => (
+              <option key={v} value={v} className="bg-bg">
+                {v.replace(/_/g, " ")}
+              </option>
+            ))}
+          </Select>
+        </label>
+      )}
 
       <div>
         <Label>
@@ -117,9 +167,11 @@ export function TaskForm({
         />
       </label>
 
+      {error && <p className="text-muted">{error}</p>}
+
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={pending || !title.trim()}>
-          {pending ? "Creating" : "Create"}
+          {pending ? "Saving…" : initial ? "Save changes" : "Create"}
         </Button>
         <button
           onClick={() => router.back()}

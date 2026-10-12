@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { createSubject } from "@/app/actions";
+import { createSubject, updateSubject } from "@/app/actions";
 import { Button, Input, Label, Select } from "@/components/ui";
 import type { subjects } from "@/db/schema";
 
@@ -31,32 +31,55 @@ const COLOURS = [
   "#8a6f6f",
 ];
 
+export type SubjectInitial = {
+  id: string;
+  name: string;
+  kind: Kind;
+  parentId: string | null;
+  colour: string;
+  description: string | null;
+};
+
 export function SubjectForm({
   parents,
+  initial,
 }: {
   parents: { id: string; name: string }[];
+  /** Present when editing rather than creating. */
+  initial?: SubjectInitial;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<Kind>("client");
-  const [parentId, setParentId] = useState("");
-  const [colour, setColour] = useState(COLOURS[0]);
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [kind, setKind] = useState<Kind>(initial?.kind ?? "client");
+  const [parentId, setParentId] = useState(initial?.parentId ?? "");
+  const [colour, setColour] = useState(initial?.colour ?? COLOURS[0]);
+  const [description, setDescription] = useState(initial?.description ?? "");
 
   function submit() {
     if (!name.trim() || pending) return;
     setError(null);
     start(async () => {
       try {
-        await createSubject({
-          name: name.trim(),
-          kind,
-          parentId: parentId || null,
-          colour,
-          description: description.trim() || null,
-        });
+        if (initial) {
+          await updateSubject({
+            subjectId: initial.id,
+            name: name.trim(),
+            kind,
+            parentId: parentId || null,
+            colour,
+            description: description.trim() || null,
+          });
+        } else {
+          await createSubject({
+            name: name.trim(),
+            kind,
+            parentId: parentId || null,
+            colour,
+            description: description.trim() || null,
+          });
+        }
         router.push("/subjects");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not create subject");
@@ -93,7 +116,9 @@ export function SubjectForm({
           <option value="" className="bg-bg">
             None — top level
           </option>
-          {parents.map((p) => (
+          {parents
+            .filter((p) => p.id !== initial?.id)
+            .map((p) => (
             <option key={p.id} value={p.id} className="bg-bg">
               {p.name}
             </option>
@@ -136,7 +161,7 @@ export function SubjectForm({
 
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={pending || !name.trim()}>
-          {pending ? "Creating" : "Create"}
+          {pending ? "Saving…" : initial ? "Save changes" : "Create"}
         </Button>
         <button
           onClick={() => router.back()}

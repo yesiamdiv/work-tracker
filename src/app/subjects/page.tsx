@@ -122,6 +122,12 @@ export default async function SubjectsPage({
                       New task
                     </Link>
                     <Link
+                      href={`/s/${selected.slug}/edit`}
+                      className="extlink text-[13px] text-muted hover:text-text"
+                    >
+                      Edit
+                    </Link>
+                    <Link
                       href={`/s/${selected.slug}`}
                       className="extlink text-[13px] text-muted hover:text-text"
                     >

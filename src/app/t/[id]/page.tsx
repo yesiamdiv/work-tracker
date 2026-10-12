@@ -68,7 +68,13 @@ export default async function TaskPage({
             <Meta className="text-muted">Entries</Meta>
             <Meta className="text-body">{events.length}</Meta>
           </span>
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-4">
+            <Link
+              href={`/t/${task.id}/edit`}
+              className="extlink text-[13px] text-muted hover:text-text"
+            >
+              Edit task
+            </Link>
             <DeleteControl
               what="this task"
               label="Delete task"

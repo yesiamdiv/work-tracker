@@ -1,10 +1,15 @@
+"use client";
+
+import { useState } from "react";
+
 import { deleteEvent } from "@/app/actions";
-import { DeleteControl } from "@/components/delete-control";
 import { AttachFiles } from "@/components/attach-files";
 import { AttachmentList } from "@/components/attachment-list";
+import { DeleteControl } from "@/components/delete-control";
+import { EventEditor } from "@/components/event-editor";
+import { ExtLink, Meta } from "@/components/ui";
 import type { Attachment, Event, Ref } from "@/db/schema";
 import { KIND_LABEL } from "@/lib/capture";
-import { ExtLink, Meta } from "@/components/ui";
 import { timeLabel } from "@/lib/utils";
 
 /** How each reference kind is announced, so a chip says what it actually is. */
@@ -46,7 +51,16 @@ export function EventItem({
   event: Event & { refs: Ref[]; attachments?: Attachment[] };
   canAttach?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
   const failed = event.outcome === "fail";
+
+  if (editing) {
+    return (
+      <article className="px-4 py-4">
+        <EventEditor event={event} onDone={() => setEditing(false)} />
+      </article>
+    );
+  }
 
   return (
     <article className="px-4 py-4">
@@ -63,13 +77,17 @@ export function EventItem({
             </Meta>
           </>
         )}
-        <span className="ml-auto">
+
+        <span className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => setEditing(true)}
+            className="text-[13px] text-faint transition-colors hover:text-text"
+          >
+            Edit
+          </button>
           <DeleteControl
             what="this entry"
-            onDelete={async () => {
-              "use server";
-              await deleteEvent(event.id);
-            }}
+            onDelete={() => deleteEvent(event.id)}
           />
         </span>
       </div>

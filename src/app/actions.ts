@@ -210,18 +210,175 @@ export async function captureEvent(input: {
   return event;
 }
 
-export async function updateEventBody(eventId: string, body: string) {
+/**
+ * Edits an entry.
+ *
+ * The body is re-parsed and its links re-extracted, so deleting a URL from the
+ * text removes the reference too — otherwise an edit could leave a reference
+ * pointing at something the entry no longer mentions. Shorthand markers are
+ * honoured again as well, unless `kind`/`outcome` are given explicitly.
+ */
+export async function updateEvent(input: {
+  eventId: string;
+  body: string;
+  kind?: (typeof events.kind.enumValues)[number];
+  outcome?: (typeof events.outcome.enumValues)[number] | null;
+  occurredAt?: Date;
+}) {
   await requireUser();
-  const trimmed = body.trim();
-  if (!trimmed) throw new Error("Event body cannot be empty");
+
+  const raw = input.body.trim();
+  if (!raw) throw new Error("An entry cannot be empty.");
+
+  const parsed = parseCapture(raw);
+  if (!parsed.body) throw new Error("An entry cannot be empty.");
 
   const [event] = await db
     .update(events)
-    .set({ body: trimmed, updatedAt: new Date() })
-    .where(eq(events.id, eventId))
+    .set({
+      body: parsed.body,
+      kind: input.kind ?? parsed.kind,
+      // `null` is a deliberate clear; `undefined` means fall back to the text.
+      outcome: input.outcome !== undefined ? input.outcome : parsed.outcome,
+      ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(events.id, input.eventId))
     .returning({ taskId: events.taskId });
 
-  if (event) revalidatePath(`/t/${event.taskId}`);
+  if (!event) throw new Error("That entry no longer exists.");
+
+  // Re-sync this entry's own references. Task- and subject-level refs are left
+  // alone: they were not derived from this text.
+  await db.delete(refs).where(eq(refs.eventId, input.eventId));
+  if (parsed.refs.length) {
+    await db.insert(refs).values(
+      parsed.refs.map((r) => ({
+        eventId: input.eventId,
+        taskId: event.taskId,
+        kind: r.kind,
+        url: r.url,
+        label: r.label,
+        externalKey: r.externalKey,
+      })),
+    );
+  }
+
+  revalidatePath(`/t/${event.taskId}`);
+  revalidatePath("/");
+  revalidatePath("/stream");
+}
+
+/** Kept for callers that only have new text. */
+export async function updateEventBody(eventId: string, body: string) {
+  return updateEvent({ eventId, body });
+}
+
+/* ----------------------------------------------------------- task edits --- */
+
+export async function updateTask(input: {
+  taskId: string;
+  title: string;
+  type: (typeof tasks.type.enumValues)[number];
+  status: (typeof tasks.status.enumValues)[number];
+  description?: string | null;
+  subjectIds?: string[];
+}) {
+  await requireUser();
+
+  const title = input.title.trim();
+  if (!title) throw new Error("A task needs a title.");
+
+  const closed = input.status === "done" || input.status === "abandoned";
+
+  await db
+    .update(tasks)
+    .set({
+      title,
+      type: input.type,
+      status: input.status,
+      description: input.description?.trim() || null,
+      closedAt: closed ? new Date() : null,
+    })
+    .where(eq(tasks.id, input.taskId));
+
+  if (input.subjectIds) {
+    await db.delete(taskSubjects).where(eq(taskSubjects.taskId, input.taskId));
+    if (input.subjectIds.length) {
+      await db.insert(taskSubjects).values(
+        input.subjectIds.map((subjectId, i) => ({
+          taskId: input.taskId,
+          subjectId,
+          isPrimary: i === 0 ? 1 : 0,
+        })),
+      );
+    }
+  }
+
+  revalidatePath(`/t/${input.taskId}`);
+  revalidatePath("/");
+  revalidatePath("/subjects");
+}
+
+/* -------------------------------------------------------- subject edits --- */
+
+export async function updateSubject(input: {
+  subjectId: string;
+  name: string;
+  kind: (typeof subjects.kind.enumValues)[number];
+  parentId?: string | null;
+  colour?: string;
+  description?: string | null;
+}) {
+  await requireUser();
+
+  const name = input.name.trim();
+  if (!name) throw new Error("A subject needs a name.");
+
+  if (input.parentId) {
+    if (input.parentId === input.subjectId) {
+      throw new Error("A subject cannot be its own parent.");
+    }
+
+    const [parent] = await db
+      .select({ parentId: subjects.parentId })
+      .from(subjects)
+      .where(eq(subjects.id, input.parentId))
+      .limit(1);
+    if (!parent) throw new Error("That parent subject no longer exists.");
+    if (parent.parentId) {
+      throw new Error("Subjects nest two levels only — pick a top-level parent.");
+    }
+
+    // Moving a subject that has parts under it would make three levels.
+    const [[kids]] = [
+      await db
+        .select({ n: count() })
+        .from(subjects)
+        .where(eq(subjects.parentId, input.subjectId)),
+    ];
+    if ((kids?.n ?? 0) > 0) {
+      throw new Error(
+        "This subject has parts of its own, so it cannot be moved under another. Move or delete its parts first.",
+      );
+    }
+  }
+
+  await db
+    .update(subjects)
+    .set({
+      name,
+      kind: input.kind,
+      parentId: input.parentId ?? null,
+      ...(input.colour ? { colour: input.colour } : {}),
+      description: input.description?.trim() || null,
+      // The slug is deliberately not regenerated: links and bookmarks to
+      // /s/<slug> should survive a rename.
+    })
+    .where(eq(subjects.id, input.subjectId));
+
+  revalidatePath("/subjects");
+  revalidatePath("/");
 }
 
 export async function deleteEvent(eventId: string) {

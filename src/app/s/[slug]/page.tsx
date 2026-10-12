@@ -78,6 +78,12 @@ export default async function SubjectPage({
           <h1 className="min-w-0 flex-1 text-[22px] leading-tight text-text">
             {subject.name}
           </h1>
+          <Link
+            href={`/s/${subject.slug}/edit`}
+            className="extlink shrink-0 text-[13px] text-muted hover:text-text"
+          >
+            Edit
+          </Link>
           <DeleteControl
             what="this subject"
             label="Delete subject"
