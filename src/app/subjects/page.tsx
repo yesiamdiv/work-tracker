@@ -114,12 +114,20 @@ export default async function SubjectsPage({
                   <h2 className="text-[20px] leading-tight text-text">
                     {selected.name}
                   </h2>
-                  <Link
-                    href={`/s/${selected.slug}`}
-                    className="extlink ml-auto text-[13px] text-muted hover:text-text"
-                  >
-                    Open full page
-                  </Link>
+                  <span className="ml-auto flex items-center gap-4">
+                    <Link
+                      href={`/tasks/new?subject=${selected.id}`}
+                      className="extlink text-[13px] text-muted hover:text-text"
+                    >
+                      New task
+                    </Link>
+                    <Link
+                      href={`/s/${selected.slug}`}
+                      className="extlink text-[13px] text-muted hover:text-text"
+                    >
+                      Open full page
+                    </Link>
+                  </span>
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -3,7 +3,12 @@ import { SectionLabel } from "@/components/ui";
 import { subjectList } from "@/db/queries";
 import { nest } from "@/lib/subjects";
 
-export default async function NewTaskPage() {
+export default async function NewTaskPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subject?: string }>;
+}) {
+  const { subject: preselectId } = await searchParams;
   const rows = await subjectList();
 
   // Flatten to "Parent / Child" labels so the picker stays one list.
@@ -15,7 +20,7 @@ export default async function NewTaskPage() {
   return (
     <>
       <SectionLabel>New task</SectionLabel>
-      <TaskForm subjects={options} />
+      <TaskForm subjects={options} preselect={preselectId} />
     </>
   );
 }

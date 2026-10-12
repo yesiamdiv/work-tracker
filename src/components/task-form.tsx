@@ -24,14 +24,19 @@ const TYPES: Type[] = [
 
 export function TaskForm({
   subjects,
+  preselect,
 }: {
   subjects: { id: string; label: string }[];
+  /** Ticked on arrival — set when coming from a subject's page. */
+  preselect?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<Type>("manual_test");
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(
+    preselect && subjects.some((s) => s.id === preselect) ? [preselect] : [],
+  );
   const [description, setDescription] = useState("");
 
   function toggle(id: string) {

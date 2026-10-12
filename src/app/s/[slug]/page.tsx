@@ -142,7 +142,18 @@ export default async function SubjectPage({
       )}
 
       <section className="mb-10">
-        <SectionLabel>Open tasks</SectionLabel>
+        <SectionLabel
+          right={
+            <Link
+              href={`/tasks/new?subject=${subject.id}`}
+              className="extlink text-[13px] text-muted hover:text-text"
+            >
+              New task for this subject
+            </Link>
+          }
+        >
+          Open tasks
+        </SectionLabel>
         {open.length ? (
           <Rows>
             {open.map((t) => (

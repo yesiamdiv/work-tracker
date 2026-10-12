@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { captureEvent, inboxTask } from "@/app/actions";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
 import { ImproveButton } from "@/components/improve-button";
+import { TaskPicker } from "@/components/task-picker";
 import { Label, Meta } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,9 @@ export function CaptureBox({
 }) {
   const [text, setText] = useState("");
   const [targetId, setTargetId] = useState(defaultTargetId ?? targets[0]?.id);
+  // A task created from inside the picker, so it is selectable before the
+  // server round-trip that will put it in `targets`.
+  const [extra, setExtra] = useState<CaptureTarget[]>([]);
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -35,6 +39,13 @@ export function CaptureBox({
   }, []);
 
   const parsed = text.trim() ? parseCapture(text) : null;
+
+  // De-duplicated, because a refresh will eventually deliver the new task in
+  // `targets` as well.
+  const options = [
+    ...extra.filter((e) => !targets.some((t) => t.id === e.id)),
+    ...targets,
+  ];
 
   function submit() {
     const body = text.trim();
@@ -76,22 +87,12 @@ export function CaptureBox({
       {/* Which task this lands on — a labelled control, not a bare word. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <Meta className="text-muted">Add to</Meta>
-        <select
-          value={targetId ?? ""}
-          onChange={(e) => setTargetId(e.target.value)}
-          className="max-w-[20rem] cursor-pointer truncate rounded-xs border border-line bg-raised px-2.5 py-1.5 text-[13px] text-body transition-colors hover:border-line-strong"
-        >
-          {targets.map((t) => (
-            <option key={t.id} value={t.id} className="bg-bg">
-              {t.title}
-            </option>
-          ))}
-          {!targets.length && (
-            <option value="" className="bg-bg">
-              Inbox
-            </option>
-          )}
-        </select>
+        <TaskPicker
+          tasks={options}
+          value={targetId}
+          onChange={setTargetId}
+          onCreated={(t) => setExtra((x) => [t, ...x])}
+        />
 
         <ImproveButton text={text} onAccept={setText} />
 
