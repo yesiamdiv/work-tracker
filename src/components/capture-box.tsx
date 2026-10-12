@@ -1,12 +1,15 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { captureEvent, inboxTask } from "@/app/actions";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
+import { FileStaging, type Staged } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
 import { TaskPicker } from "@/components/task-picker";
 import { Label, Meta } from "@/components/ui";
+import { filesFromClipboard, uploadFilesToEvent } from "@/lib/drive-upload";
 import { cn } from "@/lib/utils";
 
 export type CaptureTarget = { id: string; title: string };
@@ -25,6 +28,7 @@ export function CaptureBox({
   targets: CaptureTarget[];
   defaultTargetId?: string;
 }) {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [targetId, setTargetId] = useState(defaultTargetId ?? targets[0]?.id);
   // A task created from inside the picker, so it is selectable before the
@@ -32,6 +36,9 @@ export function CaptureBox({
   const [extra, setExtra] = useState<CaptureTarget[]>([]);
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [staged, setStaged] = useState<Staged[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -50,13 +57,44 @@ export function CaptureBox({
   function submit() {
     const body = text.trim();
     if (!body || pending) return;
+    setUploadError(null);
     start(async () => {
       const id = targetId ?? (await inboxTask());
-      await captureEvent({ taskId: id, text: body });
+      const event = await captureEvent({ taskId: id, text: body });
+
+      // Files can only be attached once the entry exists, so they go second.
+      // The entry is already saved by this point: an upload failure must never
+      // cost you the text.
+      if (event && staged.length) {
+        const result = await uploadFilesToEvent(
+          event.id,
+          staged.map((s) => s.file),
+          ({ index, pct }) =>
+            setStaged((list) =>
+              list.map((s, i) => (i === index ? { ...s, pct } : s)),
+            ),
+        );
+        if (result.failures.length) {
+          setUploadError(
+            `Entry saved, but ${result.failures.length} file${result.failures.length > 1 ? "s" : ""} did not upload: ${result.failures[0].error}`,
+          );
+          setStaged((list) =>
+            list.map((s) => ({
+              ...s,
+              error: result.failures.find((f) => f.name === s.file.name)?.error,
+            })),
+          );
+          router.refresh();
+          return;
+        }
+      }
+
       setText("");
+      setStaged([]);
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
       ref.current?.focus();
+      router.refresh();
     });
   }
 
@@ -76,7 +114,24 @@ export function CaptureBox({
             submit();
           }
         }}
-        placeholder={"What happened? Paste any ticket or sheet links straight into the text."}
+        onPaste={(e) => {
+          const files = filesFromClipboard(e.nativeEvent);
+          if (files.length) {
+            e.preventDefault();
+            setStaged((list) => [...list, ...files.map((file) => ({ file }))]);
+          }
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length) {
+            e.preventDefault();
+            setStaged((list) => [...list, ...files.map((file) => ({ file }))]);
+          }
+        }}
+        placeholder={
+          "What happened? Paste ticket or sheet links straight into the text, and screenshots too."
+        }
         className={cn(
           "w-full rounded-xs border border-line bg-raised px-4 py-3 text-body",
           "transition-colors focus:border-line-strong",
@@ -94,6 +149,15 @@ export function CaptureBox({
           onCreated={(t) => setExtra((x) => [t, ...x])}
         />
 
+        <FileStaging
+          staged={staged}
+          disabled={pending}
+          onAdd={(files) =>
+            setStaged((list) => [...list, ...files.map((file) => ({ file }))])
+          }
+          onRemove={(i) => setStaged((list) => list.filter((_, j) => j !== i))}
+        />
+
         <ImproveButton text={text} onAccept={setText} />
 
         <span className="ml-auto">
@@ -108,6 +172,12 @@ export function CaptureBox({
       </div>
 
       {/* What the app understood. Only shown once there is something to report. */}
+      {uploadError && (
+        <p className="mt-2.5">
+          <Meta className="text-body">{uploadError}</Meta>
+        </p>
+      )}
+
       {parsed && (
         <div className="mt-3 rounded-xs border border-line px-3.5 py-2.5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">

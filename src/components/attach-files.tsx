@@ -1,164 +1,77 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
-import { recordAttachment, uploadTicket } from "@/app/drive-actions";
+import { FileStaging, type Staged } from "@/components/file-staging";
 import { Meta } from "@/components/ui";
-
-type Progress = { name: string; pct: number; error?: string };
+import { uploadFilesToEvent } from "@/lib/drive-upload";
 
 /**
- * Uploads straight from the browser to Google Drive.
+ * Adds files to an entry that already exists.
  *
- * Deliberately not routed through a server action: Vercel caps a request body
- * at a few megabytes, and a screen recording of a flaky test is bigger than
- * that. Only the resulting file id comes back to us.
+ * The usual way to attach is while composing — see `FileStaging` in the
+ * capture boxes. This is for afterwards, when you realise a screenshot would
+ * have helped.
  */
 export function AttachFiles({ eventId }: { eventId: string }) {
   const router = useRouter();
-  const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [rows, setRows] = useState<Progress[]>([]);
+  const [staged, setStaged] = useState<Staged[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
 
-  async function send(files: File[]) {
+  function send() {
+    if (!staged.length || pending) return;
     setError(null);
-    setBusy(true);
-    setRows(files.map((f) => ({ name: f.name, pct: 0 })));
+    start(async () => {
+      const result = await uploadFilesToEvent(
+        eventId,
+        staged.map((s) => s.file),
+        ({ index, pct }) =>
+          setStaged((list) =>
+            list.map((s, i) => (i === index ? { ...s, pct } : s)),
+          ),
+      );
 
-    const ticket = await uploadTicket(eventId);
-    if (!ticket.ok) {
-      setError(ticket.error);
-      setRows([]);
-      setBusy(false);
-      return;
-    }
-
-    for (let i = 0; i < files.length; i++) {
-      try {
-        const fileId = await putToDrive(
-          files[i],
-          ticket.data.token,
-          ticket.data.folderId,
-          (pct) =>
-            setRows((r) => r.map((x, j) => (j === i ? { ...x, pct } : x))),
+      if (result.failures.length) {
+        setError(result.failures[0].error);
+        setStaged((list) =>
+          list.map((s) => ({
+            ...s,
+            error: result.failures.find((f) => f.name === s.file.name)?.error,
+          })),
         );
-        const saved = await recordAttachment({ eventId, fileId });
-        if (!saved.ok) throw new Error(saved.error);
-        setRows((r) => r.map((x, j) => (j === i ? { ...x, pct: 100 } : x)));
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Upload failed";
-        setRows((r) => r.map((x, j) => (j === i ? { ...x, error: message } : x)));
+      } else {
+        setStaged([]);
       }
-    }
-
-    setBusy(false);
-    router.refresh();
-    // Clear the finished rows, but keep any that failed on screen.
-    setRows((r) => r.filter((x) => x.error));
-    if (input.current) input.current.value = "";
+      router.refresh();
+    });
   }
 
   return (
     <div className="mt-2">
-      <input
-        ref={input}
-        type="file"
-        multiple
-        hidden
-        disabled={busy}
-        onChange={(e) => {
-          const files = Array.from(e.target.files ?? []);
-          if (files.length) void send(files);
-        }}
-      />
+      <div className="flex flex-wrap items-center gap-4">
+        <FileStaging
+          staged={staged}
+          disabled={pending}
+          onAdd={(files) =>
+            setStaged((list) => [...list, ...files.map((file) => ({ file }))])
+          }
+          onRemove={(i) => setStaged((list) => list.filter((_, j) => j !== i))}
+        />
 
-      <button
-        onClick={() => input.current?.click()}
-        disabled={busy}
-        className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-50"
-      >
-        {busy ? "Uploading…" : "Attach files"}
-      </button>
+        {staged.length > 0 && !pending && (
+          <button
+            onClick={send}
+            className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80"
+          >
+            Upload {staged.length} file{staged.length > 1 ? "s" : ""}
+          </button>
+        )}
+        {pending && <Meta>Uploading…</Meta>}
+      </div>
 
       {error && <Meta className="mt-1.5 block text-body">{error}</Meta>}
-
-      {rows.length > 0 && (
-        <ul className="mt-2 space-y-1">
-          {rows.map((r) => (
-            <li key={r.name} className="flex items-center gap-2">
-              <Meta className="min-w-0 flex-1 truncate">{r.name}</Meta>
-              <Meta className={r.error ? "text-body" : "text-muted"}>
-                {r.error ?? (r.pct === 100 ? "done" : `${r.pct}%`)}
-              </Meta>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
-}
-
-/**
- * Multipart upload to Drive.
- *
- * XMLHttpRequest rather than fetch, purely for upload progress — `fetch` still
- * has no way to report how much of a request body has been sent.
- */
-function putToDrive(
-  file: File,
-  token: string,
-  folderId: string,
-  onProgress: (pct: number) => void,
-): Promise<string> {
-  const metadata = {
-    name: file.name,
-    parents: [folderId],
-  };
-
-  const body = new FormData();
-  body.append(
-    "metadata",
-    new Blob([JSON.stringify(metadata)], { type: "application/json" }),
-  );
-  body.append("file", file);
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(
-      "POST",
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
-    );
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText).id as string);
-        } catch {
-          reject(new Error("Drive returned something unreadable."));
-        }
-      } else if (xhr.status === 401) {
-        reject(new Error("Google sign-in expired — sign out and back in."));
-      } else if (xhr.status === 403) {
-        reject(
-          new Error(
-            "Drive refused it. Is the Google Drive API enabled for the project?",
-          ),
-        );
-      } else {
-        reject(new Error(`Drive error ${xhr.status}`));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error("Network error during upload."));
-    xhr.send(body);
-  });
 }

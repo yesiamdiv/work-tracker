@@ -92,12 +92,14 @@ export function Chip({
 export function Meta({
   children,
   className,
+  title,
 }: {
   children: React.ReactNode;
   className?: string;
+  title?: string;
 }) {
   return (
-    <span className={cn("text-[12.5px] text-faint tnum", className)}>
+    <span title={title} className={cn("text-[12.5px] text-faint tnum", className)}>
       {children}
     </span>
   );
