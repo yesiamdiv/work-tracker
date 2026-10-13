@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AiSummary } from "@/components/ai-summary";
 import { DeleteControl } from "@/components/delete-control";
-import { TaskRow } from "@/components/task-row";
+import { TaskCollapseList } from "@/components/task-collapse-list";
 import {
   Dot,
   Empty,
@@ -138,6 +138,7 @@ export default async function SubjectPage({
 
       <section className="mb-10">
         <SectionLabel
+          hint="Open first, then finished. Includes tasks on this subject's parts."
           right={
             <Link
               href={`/tasks/new?subject=${subject.id}`}
@@ -147,29 +148,14 @@ export default async function SubjectPage({
             </Link>
           }
         >
-          Open tasks
+          Tasks
         </SectionLabel>
-        {open.length ? (
-          <Rows>
-            {open.map((t) => (
-              <TaskRow key={t.id} task={t} />
-            ))}
-          </Rows>
-        ) : (
-          <Empty>Nothing open for this subject.</Empty>
-        )}
+        <TaskCollapseList
+          tasks={tasks}
+          empty="No tasks on this subject yet."
+        />
       </section>
 
-      {closed.length > 0 && (
-        <section className="mb-10">
-          <SectionLabel>Finished</SectionLabel>
-          <Rows>
-            {closed.map((t) => (
-              <TaskRow key={t.id} task={t} />
-            ))}
-          </Rows>
-        </section>
-      )}
 
       {allRefs.length > 0 && (
         <section>

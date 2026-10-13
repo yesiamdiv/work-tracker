@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FeedList } from "@/components/feed-list";
 import { Spark } from "@/components/spark";
 import { SubjectTree, type TreeRow } from "@/components/subject-tree";
+import { TaskCollapseList } from "@/components/task-collapse-list";
 import {
   Dot,
   Empty,
@@ -222,44 +223,23 @@ export default async function SubjectsPage({
 
               <section className="mt-7">
                 <SectionLabel
+                  hint="Open first, then finished. Includes tasks on this subject's parts."
                   right={
                     <Link
-                      href={`/stream?subject=${selected.id}`}
+                      href={`/tasks/new?subject=${selected.id}`}
                       className="extlink text-[13px] text-muted hover:text-text"
                     >
-                      All entries
+                      New task
                     </Link>
                   }
                 >
-                  Latest entries
+                  Tasks
                 </SectionLabel>
-                <FeedList
-                  entries={recent.entries}
-                  empty="Nothing logged against this subject yet."
+                <TaskCollapseList
+                  tasks={tasks}
+                  empty="No tasks on this subject yet."
                 />
               </section>
-
-              {open.length > 0 && (
-                <section className="mt-7">
-                  <SectionLabel>Open tasks</SectionLabel>
-                  <div className="divide-y divide-line rounded-xs border border-line">
-                    {open.map((t) => (
-                      <Link
-                        key={t.id}
-                        href={`/t/${t.id}`}
-                        className="rowlink flex items-center gap-3 px-4 py-2.5"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-body">
-                          {t.title}
-                        </span>
-                        <Meta className="shrink-0">
-                          {t.eventCount} · {ago(t.lastActivityAt)}
-                        </Meta>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              )}
 
               {refs.length > 0 && (
                 <section className="mt-7">
@@ -289,6 +269,25 @@ export default async function SubjectsPage({
                   </div>
                 </section>
               )}
+
+              <section className="mt-7">
+                <SectionLabel
+                  right={
+                    <Link
+                      href={`/stream?subject=${selected.id}`}
+                      className="extlink text-[13px] text-muted hover:text-text"
+                    >
+                      All entries
+                    </Link>
+                  }
+                >
+                  Latest entries
+                </SectionLabel>
+                <FeedList
+                  entries={recent.entries}
+                  empty="Nothing logged against this subject yet."
+                />
+              </section>
             </>
           )}
         </div>
