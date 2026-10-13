@@ -2,7 +2,14 @@ import { and, desc, eq, exists, gte, ilike, inArray, lte, or, sql, type SQL } fr
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
-import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
+import {
+  attachments,
+  events,
+  refs,
+  subjects,
+  taskSubjects,
+  tasks,
+} from "@/db/schema";
 import { subjectFilterIds } from "@/lib/subjects";
 
 export type FeedFilters = {
@@ -31,6 +38,15 @@ export type FeedEntry = {
   occurredAt: Date;
   refCount: number;
   subjects: { name: string; slug: string; colour: string; parentName: string | null }[];
+  /** Files on this entry, so the feed can show them without opening the task. */
+  attachments: {
+    id: string;
+    name: string;
+    mime: string | null;
+    size: number | null;
+    driveFileId: string;
+    webViewLink: string | null;
+  }[];
 };
 
 /**
@@ -112,17 +128,42 @@ export async function feed(filters: FeedFilters = {}) {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
 
-    return { entries: await attachSubjects(page), hasMore };
+    return { entries: await hydrate(page), hasMore };
   });
 }
 
-/** Subject chips for a page of entries, in one query rather than per row. */
-async function attachSubjects(
-  rows: Omit<FeedEntry, "subjects">[],
+/**
+ * Subject chips and attachments for a page of entries — two queries for the
+ * whole page rather than two per row.
+ */
+async function hydrate(
+  rows: Omit<FeedEntry, "subjects" | "attachments">[],
 ): Promise<FeedEntry[]> {
   if (!rows.length) return [];
 
   const taskIds = [...new Set(rows.map((r) => r.taskId))];
+  const eventIds = rows.map((r) => r.id);
+
+  const files = await db
+    .select({
+      id: attachments.id,
+      eventId: attachments.eventId,
+      name: attachments.name,
+      mime: attachments.mime,
+      size: attachments.size,
+      driveFileId: attachments.driveFileId,
+      webViewLink: attachments.webViewLink,
+    })
+    .from(attachments)
+    .where(inArray(attachments.eventId, eventIds));
+
+  const byEvent = new Map<string, FeedEntry["attachments"]>();
+  for (const f of files) {
+    const list = byEvent.get(f.eventId) ?? [];
+    list.push(f);
+    byEvent.set(f.eventId, list);
+  }
+
   const links = await db
     .select({
       taskId: taskSubjects.taskId,
@@ -144,7 +185,11 @@ async function attachSubjects(
     byTask.set(l.taskId, list);
   }
 
-  return rows.map((r) => ({ ...r, subjects: byTask.get(r.taskId) ?? [] }));
+  return rows.map((r) => ({
+    ...r,
+    subjects: byTask.get(r.taskId) ?? [],
+    attachments: byEvent.get(r.id) ?? [],
+  }));
 }
 
 /** Subjects for the filter dropdown, as "Parent / Child" labels. */

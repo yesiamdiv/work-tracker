@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { deleteEvent } from "@/app/actions";
+import { AttachmentList } from "@/components/attachment-list";
 import { DeleteControl } from "@/components/delete-control";
 import { EntryBody, EntryMeta } from "@/components/entry-meta";
 import { EventEditor } from "@/components/event-editor";
@@ -67,7 +68,11 @@ export function FeedRow({
         }
       />
 
-      <EntryBody body={entry.body} failed={entry.outcome === "fail"} />
+      <EntryBody body={entry.body} failed={entry.outcome === "fail"}>
+        {entry.attachments.length > 0 && (
+          <AttachmentList items={entry.attachments} />
+        )}
+      </EntryBody>
 
       {showTask && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
