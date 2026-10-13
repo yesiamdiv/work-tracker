@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { Stats } from "@/db/stats";
 import { STALE_DAYS } from "@/db/stats";
+import { Spark } from "@/components/spark";
 import { Meta } from "@/components/ui";
 
 /**
@@ -40,38 +41,6 @@ function Tile({
     </Link>
   ) : (
     <div className={base}>{inner}</div>
-  );
-}
-
-/** Tiny inline bar chart. SVG, no library, legible in one glance. */
-function Spark({ data }: { data: { day: string; n: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.n));
-  const w = 3;
-  const gap = 1;
-  const h = 22;
-
-  return (
-    <svg
-      viewBox={`0 0 ${data.length * (w + gap)} ${h}`}
-      className="mt-2 h-[22px] w-full"
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`Entries per day over the last ${data.length} days`}
-    >
-      {data.map((d, i) => {
-        const barH = d.n === 0 ? 1 : Math.max(1.5, (d.n / max) * h);
-        return (
-          <rect
-            key={d.day}
-            x={i * (w + gap)}
-            y={h - barH}
-            width={w}
-            height={barH}
-            fill={d.n === 0 ? "#2a2a2a" : "#9a9a9a"}
-          />
-        );
-      })}
-    </svg>
   );
 }
 
@@ -117,7 +86,13 @@ export function StatTiles({
 
       <div className="mt-3 rounded-xs border border-line px-4 py-3">
         <Meta className="text-muted">Activity, last 28 days</Meta>
-        <Spark data={activity} />
+        <Spark
+          data={activity.map((a) => a.n)}
+          height={22}
+          fullWidth
+          className="mt-2"
+          label={`Entries per day over the last ${activity.length} days`}
+        />
       </div>
     </div>
   );

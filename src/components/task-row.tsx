@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import type { SubjectChip } from "@/db/queries";
-import { Chevron, Dot, Meta } from "@/components/ui";
+import { SubjectLinks } from "@/components/subject-link";
+import { Chevron, Meta } from "@/components/ui";
 import { ago } from "@/lib/utils";
 
 const STATUS_WORD: Record<string, string> = {
@@ -48,31 +49,7 @@ export function TaskRow({
 
         <div className="relative z-10 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
           {/* What owns this task — stated either way, so "nothing" is visible. */}
-          {task.subjects.length ? (
-            task.subjects.map((s) => (
-              <Link
-                key={s.id}
-                href={`/s/${s.slug}`}
-                title={
-                  s.parentName
-                    ? `${s.parentName} / ${s.name}`
-                    : `Subject: ${s.name}`
-                }
-                className="inline-flex items-center gap-1.5 rounded-xs border border-line px-1.5 py-[1px] text-[12.5px] text-muted transition-colors hover:border-line-strong hover:bg-raised hover:text-text"
-              >
-                <Dot colour={s.colour} />
-                {s.parentName ? `${s.parentName} / ${s.name}` : s.name}
-              </Link>
-            ))
-          ) : (
-            <Link
-              href={`/t/${task.id}/edit`}
-              title="This task is not linked to any subject — click to add one"
-              className="rounded-xs border border-dashed border-line px-1.5 py-[1px] text-[12.5px] text-faint transition-colors hover:border-line-strong hover:text-muted"
-            >
-              No subject
-            </Link>
-          )}
+          <SubjectLinks subjects={task.subjects} taskId={task.id} />
 
           <Meta>· {task.type.replace(/_/g, " ")}</Meta>
           {stalled && (

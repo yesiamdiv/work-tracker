@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { updateEvent } from "@/app/actions";
 import { ImproveButton } from "@/components/improve-button";
-import { Button, Label, Meta } from "@/components/ui";
+import { Button, Label, Meta, Textarea } from "@/components/ui";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
 import type { events } from "@/db/schema";
 
@@ -82,7 +82,7 @@ export function EventEditor({
     <div className="rounded-xs border border-line-strong p-3.5">
       <Label>Editing this entry</Label>
 
-      <textarea
+      <Textarea
         autoFocus
         rows={4}
         value={body}
@@ -92,7 +92,6 @@ export function EventEditor({
         onKeyDown={(e) => {
           if (e.key === "Escape") onDone();
         }}
-        className="w-full rounded-xs border border-line bg-raised px-3 py-2.5 text-body transition-colors focus:border-line-strong disabled:opacity-50"
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-2.5">

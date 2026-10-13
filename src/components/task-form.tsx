@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 
 import { createTask, updateTask } from "@/app/actions";
 import { SubjectChips } from "@/components/subject-chips";
-import { Button, Input, Label, Select } from "@/components/ui";
+import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { tasks } from "@/db/schema";
 
 type Type = (typeof tasks.type.enumValues)[number];
@@ -139,11 +139,10 @@ export function TaskForm({
 
       <label className="block">
         <Label>Notes — optional</Label>
-        <textarea
+        <Textarea
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full rounded-xs border border-line bg-raised px-3 py-2 text-body transition-colors focus:border-line-strong"
         />
       </label>
 

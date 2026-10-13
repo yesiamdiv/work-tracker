@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { acceptProposal, proposeFromPrompt, type Proposal } from "@/app/ai-actions";
-import { Button, Label, Meta } from "@/components/ui";
+import { Button, Label, Meta, Textarea } from "@/components/ui";
 import { KIND_LABEL } from "@/lib/capture";
 
 /**
@@ -47,7 +47,7 @@ export function AiCompose() {
   return (
     <section className="rounded-xs border border-line p-5">
       <Label>Describe some work and let Claude set it up</Label>
-      <textarea
+      <Textarea
         rows={5}
         value={text}
         disabled={pending || saving}
@@ -55,7 +55,6 @@ export function AiCompose() {
         placeholder={
           "Paste rough notes, or describe what you're starting. For example:\n\nStarting QA on the Acme firmware 2.5 beta this week. Need to run the power suite and the BLE reconnect cases on rev C and rev D. Already found that pairing fails on first boot — raised ACME-4502."
         }
-        className="w-full rounded-xs border border-line bg-raised px-4 py-3 text-body transition-colors focus:border-line-strong disabled:opacity-50"
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-4">

@@ -18,20 +18,9 @@ import { summariseSubject } from "@/app/ai-actions";
 import { providerReady } from "@/lib/ai";
 import { subjectBySlug, subjectRefs, subjectTasks } from "@/db/queries";
 import { refs as refsTable } from "@/db/schema";
+import { refGroupTitle, refLabel } from "@/lib/ref-display";
 
 type RefKind = (typeof refsTable.kind.enumValues)[number];
-
-const REF_GROUP: Record<RefKind, string> = {
-  jira: "Tickets",
-  sheet: "Sheets",
-  doc: "Docs",
-  slide: "Slides",
-  confluence: "Confluence",
-  pr: "Pull requests",
-  build: "Builds",
-  repo: "Repos",
-  other: "Other links",
-};
 
 export default async function SubjectPage({
   params,
@@ -191,13 +180,13 @@ export default async function SubjectPage({
             {[...refsByKind.entries()].map(([kind, list]) => (
               <div key={kind} className="rounded-xs border border-line p-4">
                 <Label>
-                  {REF_GROUP[kind]} ({list.length})
+                  {refGroupTitle(kind)} ({list.length})
                 </Label>
                 <div className="space-y-2">
                   {list.map((r) => (
                     <div key={r.id} className="truncate">
                       <ExtLink href={r.url} title={r.url}>
-                        {r.label ?? r.externalKey ?? r.url}
+                        {refLabel(r)}
                       </ExtLink>
                     </div>
                   ))}

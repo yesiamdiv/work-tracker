@@ -141,6 +141,28 @@ export function Input({
   );
 }
 
+/**
+ * The one textarea. Six copies of this class string had drifted across the
+ * forms and compose boxes — three different paddings, two missing the focus
+ * colour, two missing the disabled state.
+ */
+export function Textarea({
+  className,
+  ...props
+}: React.ComponentPropsWithRef<"textarea">) {
+  return (
+    <textarea
+      {...props}
+      className={cn(
+        "w-full rounded-xs border border-line bg-raised px-3.5 py-2.5 text-body",
+        "transition-colors focus:border-line-strong",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        className,
+      )}
+    />
+  );
+}
+
 export function Select({
   className,
   ...props

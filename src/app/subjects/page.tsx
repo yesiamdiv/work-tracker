@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { FeedList } from "@/components/feed-list";
-import { Spark, SubjectTree, type TreeRow } from "@/components/subject-tree";
+import { Spark } from "@/components/spark";
+import { SubjectTree, type TreeRow } from "@/components/subject-tree";
 import {
   Dot,
   Empty,
@@ -15,19 +16,8 @@ import { feed } from "@/db/feed";
 import { subjectList, subjectRefs, subjectTasks } from "@/db/queries";
 import { subjectWeeklyActivity } from "@/db/stats";
 import { nest } from "@/lib/subjects";
+import { refGroupTitle, refLabel } from "@/lib/ref-display";
 import { ago } from "@/lib/utils";
-
-const REF_GROUP: Record<string, string> = {
-  jira: "Tickets",
-  sheet: "Sheets",
-  doc: "Docs",
-  slide: "Slides",
-  confluence: "Confluence",
-  pr: "Pull requests",
-  build: "Builds",
-  repo: "Repos",
-  other: "Other links",
-};
 
 export default async function SubjectsPage({
   searchParams,
@@ -192,7 +182,9 @@ export default async function SubjectsPage({
                   </Meta>
                   <Spark
                     data={activity.series.get(selected.id) ?? []}
-                    className="!h-7 !w-full"
+                    height={28}
+                    fullWidth
+                    label="Entries per week over the last 12 weeks"
                   />
                 </div>
 
@@ -281,13 +273,13 @@ export default async function SubjectsPage({
                         className="rounded-xs border border-line p-4"
                       >
                         <Label>
-                          {REF_GROUP[kind] ?? kind} ({list.length})
+                          {refGroupTitle(kind)} ({list.length})
                         </Label>
                         <div className="space-y-2">
                           {list.map((r) => (
                             <div key={r.id} className="truncate">
                               <ExtLink href={r.url} title={r.url}>
-                                {r.label ?? r.externalKey ?? r.url}
+                                {refLabel(r)}
                               </ExtLink>
                             </div>
                           ))}

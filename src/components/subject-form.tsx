@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { createSubject, updateSubject } from "@/app/actions";
-import { Button, Input, Label, Select } from "@/components/ui";
+import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import type { subjects } from "@/db/schema";
 
 type Kind = (typeof subjects.kind.enumValues)[number];
@@ -161,11 +161,10 @@ export function SubjectForm({
 
       <label className="block">
         <Label>Notes — optional</Label>
-        <textarea
+        <Textarea
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full rounded-xs border border-line bg-raised px-3 py-2 text-body transition-colors focus:border-line-strong"
         />
       </label>
 

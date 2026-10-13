@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import type { SubjectChip } from "@/db/queries";
 import { STALE_DAYS } from "@/db/stats";
-import { Dot, Meta } from "@/components/ui";
+import { SubjectLinks } from "@/components/subject-link";
+import { Meta } from "@/components/ui";
 import { ago } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -92,37 +93,11 @@ export function TaskSidebar({
                 </Link>
 
                 <span className="relative z-10 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {t.subjects.length ? (
-                    <>
-                      {t.subjects.slice(0, 2).map((s) => (
-                        <Link
-                          key={s.id}
-                          href={`/s/${s.slug}`}
-                          title={
-                            s.parentName
-                              ? `${s.parentName} / ${s.name}`
-                              : `Subject: ${s.name}`
-                          }
-                          className="inline-flex items-center gap-1 rounded-xs border border-line px-1.5 py-[1px] text-[12.5px] text-muted transition-colors hover:border-line-strong hover:text-text"
-                        >
-                          <Dot colour={s.colour} />
-                          {s.name}
-                        </Link>
-                      ))}
-                      {t.subjects.length > 2 && (
-                        <Meta>+{t.subjects.length - 2} more</Meta>
-                      )}
-                    </>
-                  ) : (
-                    /* Say so rather than leave an empty gap. */
-                    <Link
-                      href={`/t/${t.id}/edit`}
-                      title="Not linked to any subject — click to add one"
-                      className="rounded-xs border border-dashed border-line px-1.5 py-[1px] text-[12.5px] text-faint transition-colors hover:border-line-strong hover:text-muted"
-                    >
-                      No subject
-                    </Link>
-                  )}
+                  <SubjectLinks
+                    subjects={t.subjects}
+                    taskId={t.id}
+                    limit={2}
+                  />
 
                   <Meta>· {t.eventCount}</Meta>
                   {/* Stale is stated in words — a dim dot would read as decoration. */}

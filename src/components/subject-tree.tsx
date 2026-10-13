@@ -1,48 +1,8 @@
 import Link from "next/link";
 
+import { Spark } from "@/components/spark";
 import { Dot, Meta } from "@/components/ui";
 import { cn } from "@/lib/utils";
-
-/**
- * Weekly entry counts as a sparkline. Monochrome, 1px bars, quiet weeks drawn
- * as stubs rather than skipped — a gap you can see is information.
- */
-export function Spark({
-  data,
-  className,
-}: {
-  data: number[];
-  className?: string;
-}) {
-  const max = Math.max(1, ...data);
-  const w = 3;
-  const gap = 1;
-  const h = 14;
-
-  return (
-    <svg
-      viewBox={`0 0 ${data.length * (w + gap)} ${h}`}
-      className={cn("h-[14px]", className)}
-      style={{ width: data.length * (w + gap) }}
-      preserveAspectRatio="none"
-      aria-hidden
-    >
-      {data.map((n, i) => {
-        const barH = n === 0 ? 1 : Math.max(2, (n / max) * h);
-        return (
-          <rect
-            key={i}
-            x={i * (w + gap)}
-            y={h - barH}
-            width={w}
-            height={barH}
-            fill={n === 0 ? "#2a2a2a" : "#9a9a9a"}
-          />
-        );
-      })}
-    </svg>
-  );
-}
 
 export type TreeRow = {
   id: string;
@@ -90,7 +50,7 @@ function Line({
           {row.name}
         </span>
       </span>
-      {spark && <Spark data={spark} className="shrink-0 opacity-80" />}
+      {spark && <Spark data={spark} className="shrink-0" />}
       <Meta className="w-5 shrink-0 text-right">{row.openTasks || ""}</Meta>
     </Link>
   );

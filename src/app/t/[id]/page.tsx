@@ -18,19 +18,8 @@ import { deleteTask, taskDeleteImpact } from "@/app/actions";
 import { summariseTask } from "@/app/ai-actions";
 import { providerReady } from "@/lib/ai";
 import { taskDetail } from "@/db/queries";
+import { refLabel, refWord } from "@/lib/ref-display";
 import { byDay } from "@/lib/utils";
-
-const REF_WORD: Record<string, string> = {
-  jira: "Ticket",
-  sheet: "Sheet",
-  doc: "Doc",
-  slide: "Slides",
-  confluence: "Confluence",
-  pr: "PR",
-  build: "Build",
-  repo: "Repo",
-  other: "Link",
-};
 
 export default async function TaskPage({
   params,
@@ -124,7 +113,7 @@ export default async function TaskPage({
             <div className="flex flex-wrap gap-x-4 gap-y-2">
               {taskRefs.map((r) => (
                 <ExtLink key={r.id} href={r.url} title={r.url}>
-                  {REF_WORD[r.kind] ?? "Link"} · {r.label ?? r.externalKey ?? r.kind}
+                  {refWord(r.kind)} · {refLabel(r)}
                 </ExtLink>
               ))}
             </div>

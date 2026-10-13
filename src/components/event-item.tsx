@@ -6,40 +6,20 @@ import { deleteEvent } from "@/app/actions";
 import { AttachFiles } from "@/components/attach-files";
 import { AttachmentList } from "@/components/attachment-list";
 import { DeleteControl } from "@/components/delete-control";
+import { EntryBody, EntryMeta } from "@/components/entry-meta";
 import { EventEditor } from "@/components/event-editor";
 import { ExtLink, Meta } from "@/components/ui";
 import type { Attachment, Event, Ref } from "@/db/schema";
-import { KIND_LABEL } from "@/lib/capture";
-import { timeLabel } from "@/lib/utils";
-
-/** How each reference kind is announced, so a chip says what it actually is. */
-const REF_WORD: Record<string, string> = {
-  jira: "Ticket",
-  sheet: "Sheet",
-  doc: "Doc",
-  slide: "Slides",
-  confluence: "Confluence",
-  pr: "PR",
-  build: "Build",
-  repo: "Repo",
-  other: "Link",
-};
+import { refLabel, refWord } from "@/lib/ref-display";
 
 /**
  * The prop is `link`, not `ref` — React reserves `ref` and refuses to pass it
  * through a component boundary.
  */
 function RefLink({ link }: { link: Ref }) {
-  let host = link.url;
-  try {
-    host = new URL(link.url).hostname.replace(/^www\./, "");
-  } catch {
-    // Keep the raw string if it will not parse.
-  }
-  const label = link.label ?? link.externalKey ?? host;
   return (
     <ExtLink href={link.url} title={link.url}>
-      {REF_WORD[link.kind] ?? "Link"} · {label}
+      {refWord(link.kind)} · {refLabel(link)}
     </ExtLink>
   );
 }
@@ -52,7 +32,6 @@ export function EventItem({
   canAttach?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const failed = event.outcome === "fail";
 
   if (editing) {
     return (
@@ -64,39 +43,29 @@ export function EventItem({
 
   return (
     <article className="px-4 py-4">
-      {/* Time, kind and outcome stated on their own line, not trailing the body. */}
-      <div className="mb-2 flex items-center gap-2.5">
-        <Meta className="text-muted">{timeLabel(event.occurredAt)}</Meta>
-        <span aria-hidden className="h-3 w-px bg-line" />
-        <Meta className="text-muted">{KIND_LABEL[event.kind]}</Meta>
-        {event.outcome && (
+      <EntryMeta
+        occurredAt={event.occurredAt}
+        kind={event.kind}
+        outcome={event.outcome}
+        refCount={event.refs.length}
+        actions={
           <>
-            <span aria-hidden className="h-3 w-px bg-line" />
-            <Meta className={failed ? "text-text" : "text-muted"}>
-              {event.outcome}
-            </Meta>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-[13px] text-faint transition-colors hover:text-text"
+            >
+              Edit
+            </button>
+            <DeleteControl
+              what="this entry"
+              onDelete={() => deleteEvent(event.id)}
+            />
           </>
-        )}
+        }
+      />
 
-        <span className="ml-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="text-[13px] text-faint transition-colors hover:text-text"
-          >
-            Edit
-          </button>
-          <DeleteControl
-            what="this entry"
-            onDelete={() => deleteEvent(event.id)}
-          />
-        </span>
-      </div>
-
-      {/* A failure is marked by a rule down the side, not a colour. */}
-      <div className={failed ? "border-l border-line-strong pl-3" : ""}>
-        <p className="whitespace-pre-wrap break-words text-body">{event.body}</p>
-
+      <EntryBody body={event.body} failed={event.outcome === "fail"}>
         {event.refs.length > 0 && (
           <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
             {event.refs.map((r) => (
@@ -110,7 +79,7 @@ export function EventItem({
         )}
 
         {canAttach && <AttachFiles eventId={event.id} />}
-      </div>
+      </EntryBody>
     </article>
   );
 }
