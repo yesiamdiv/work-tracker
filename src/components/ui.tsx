@@ -184,6 +184,28 @@ export function Label({ children }: { children: React.ReactNode }) {
   return <span className="mb-2 block text-[13px] text-muted">{children}</span>;
 }
 
+/**
+ * A problem the person has to act on.
+ *
+ * Deliberately louder than Meta text: an expired Drive sign-in was being
+ * reported in 12.5px grey and scrolled straight past, so uploads looked like
+ * they were silently doing nothing.
+ */
+export function Alert({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xs border border-line-strong bg-raised px-3.5 py-2.5">
+      <span className="min-w-0 flex-1 text-[13px] text-text">{children}</span>
+      {action}
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
     <p className="rounded-xs border border-dashed border-line px-4 py-7 text-center text-muted">

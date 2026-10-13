@@ -4,7 +4,11 @@ import { EntryFields } from "@/components/entry-fields";
 import { EntryPreview } from "@/components/entry-preview";
 import { FileStaging } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
-import { Button, Label, Meta, Textarea } from "@/components/ui";
+import {
+  looksLikeExpiredSignIn,
+  ReauthNotice,
+} from "@/components/reauth-notice";
+import { Alert, Button, Label, Meta, Textarea } from "@/components/ui";
 import { useEntryComposer } from "@/components/use-entry-composer";
 
 /** Adds an entry to a task whose identity is already known. */
@@ -27,7 +31,11 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <Button onClick={c.submit} disabled={!c.canSave}>
-          {c.pending ? "Saving…" : "Save entry"}
+          {c.pending
+            ? "Saving…"
+            : c.staged.length
+              ? `Save entry + ${c.staged.length} file${c.staged.length > 1 ? "s" : ""}`
+              : "Save entry"}
         </Button>
 
         <FileStaging
@@ -42,11 +50,12 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
         <EntryPreview parsed={c.parsed} compact />
       </div>
 
-      {c.uploadError && (
-        <p className="mt-2.5">
-          <Meta className="text-body">{c.uploadError}</Meta>
-        </p>
-      )}
+      {c.uploadError &&
+        (looksLikeExpiredSignIn(c.uploadError) ? (
+          <ReauthNotice message={c.uploadError} />
+        ) : (
+          <Alert>{c.uploadError}</Alert>
+        ))}
     </section>
   );
 }

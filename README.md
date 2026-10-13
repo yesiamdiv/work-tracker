@@ -45,7 +45,7 @@ npm run dev
 **5. Deploy.** Import the repo on Vercel, paste the same env vars, set
 `AUTH_URL` to the deployed origin, and add that origin's callback URL to the
 Google client. Do this early — hosting is easier to settle now than later.
-
+    
 ## Using it
 
 The capture box on **Today** is the whole point. Type one line, hit enter.

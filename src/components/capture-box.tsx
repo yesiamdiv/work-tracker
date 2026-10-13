@@ -7,8 +7,12 @@ import { EntryFields } from "@/components/entry-fields";
 import { EntryPreview } from "@/components/entry-preview";
 import { FileStaging } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
+import {
+  looksLikeExpiredSignIn,
+  ReauthNotice,
+} from "@/components/reauth-notice";
 import { TaskPicker } from "@/components/task-picker";
-import { Button, Label, Meta, Textarea } from "@/components/ui";
+import { Alert, Button, Label, Meta, Textarea } from "@/components/ui";
 import { useEntryComposer } from "@/components/use-entry-composer";
 
 export type CaptureTarget = { id: string; title: string };
@@ -89,16 +93,21 @@ export function CaptureBox({
         <span className="ml-auto flex items-center gap-3">
           {c.saved && !c.pending && <Meta className="text-muted">Saved</Meta>}
           <Button onClick={c.submit} disabled={!c.canSave}>
-            {c.pending ? "Saving…" : "Save entry"}
+            {c.pending
+              ? "Saving…"
+              : c.staged.length
+                ? `Save entry + ${c.staged.length} file${c.staged.length > 1 ? "s" : ""}`
+                : "Save entry"}
           </Button>
         </span>
       </div>
 
-      {c.uploadError && (
-        <p className="mt-2.5">
-          <Meta className="text-body">{c.uploadError}</Meta>
-        </p>
-      )}
+      {c.uploadError &&
+        (looksLikeExpiredSignIn(c.uploadError) ? (
+          <ReauthNotice message={c.uploadError} />
+        ) : (
+          <Alert>{c.uploadError}</Alert>
+        ))}
 
       <EntryPreview parsed={c.parsed} />
 
