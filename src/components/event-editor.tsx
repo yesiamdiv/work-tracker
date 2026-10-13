@@ -4,19 +4,16 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { updateEvent } from "@/app/actions";
+import {
+  EntryFields,
+  forDateTimeInput,
+  type EntryOutcome,
+} from "@/components/entry-fields";
 import { ImproveButton } from "@/components/improve-button";
 import { Button, Label, Meta, Textarea } from "@/components/ui";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
 import type { events } from "@/db/schema";
 
-const KINDS = Object.keys(KIND_LABEL) as (keyof typeof KIND_LABEL)[];
-const OUTCOMES = ["pass", "fail", "partial", "inconclusive"] as const;
-
-/** `datetime-local` wants local wall-clock, not an ISO instant. */
-function forInput(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 /**
  * Edits an entry in place.
@@ -47,8 +44,8 @@ export function EventEditor({
   const router = useRouter();
   const [body, setBody] = useState(event.body);
   const [kind, setKind] = useState(event.kind);
-  const [outcome, setOutcome] = useState(event.outcome ?? "");
-  const [when, setWhen] = useState(forInput(new Date(event.occurredAt)));
+  const [outcome, setOutcome] = useState<EntryOutcome>(event.outcome);
+  const [when, setWhen] = useState(forDateTimeInput(new Date(event.occurredAt)));
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -64,7 +61,7 @@ export function EventEditor({
           eventId: event.id,
           body,
           kind,
-          outcome: outcome ? (outcome as (typeof OUTCOMES)[number]) : null,
+          outcome,
           occurredAt: when ? new Date(when) : undefined,
         });
         router.refresh();
@@ -74,9 +71,6 @@ export function EventEditor({
       }
     });
   }
-
-  const selectCls =
-    "rounded-xs border border-line bg-raised px-2 py-1.5 text-[13px] text-body transition-colors hover:border-line-strong focus:border-line-strong";
 
   return (
     <div className="rounded-xs border border-line-strong p-3.5">
@@ -94,49 +88,16 @@ export function EventEditor({
         }}
       />
 
-      <div className="mt-3 flex flex-wrap items-center gap-2.5">
-        <label className="inline-flex items-center gap-2">
-          <Meta className="text-muted">Kind</Meta>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as typeof kind)}
-            className={selectCls}
-          >
-            {KINDS.map((k) => (
-              <option key={k} value={k} className="bg-bg">
-                {KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="inline-flex items-center gap-2">
-          <Meta className="text-muted">Outcome</Meta>
-          <select
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-            className={selectCls}
-          >
-            <option value="" className="bg-bg">
-              none
-            </option>
-            {OUTCOMES.map((o) => (
-              <option key={o} value={o} className="bg-bg">
-                {o}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="inline-flex items-center gap-2">
-          <Meta className="text-muted">When</Meta>
-          <input
-            type="datetime-local"
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-            className={selectCls}
-          />
-        </label>
+      <div className="mt-3">
+        <EntryFields
+          kind={kind}
+          outcome={outcome}
+          when={when}
+          onKind={setKind}
+          onOutcome={setOutcome}
+          onWhen={setWhen}
+          disabled={pending}
+        />
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-4">

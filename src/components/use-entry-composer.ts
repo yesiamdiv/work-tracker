@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { captureEvent } from "@/app/actions";
+import {
+  forDateTimeInput,
+  type EntryKind,
+  type EntryOutcome,
+} from "@/components/entry-fields";
 import type { Staged } from "@/components/file-staging";
 import { parseCapture, type ParsedCapture } from "@/lib/capture";
 import { filesFromClipboard, uploadFilesToEvent } from "@/lib/drive-upload";
@@ -29,11 +34,28 @@ export function useEntryComposer({
 
   const [text, setText] = useState("");
   const [staged, setStaged] = useState<Staged[]>([]);
+
+  /*
+   * Kind, outcome and when follow the text until the person touches them —
+   * typing `!bug` moves the Kind select, but once it has been set by hand the
+   * text no longer overrides it. `undefined` means untouched; for outcome,
+   * `null` is a real value meaning "none", so the two are distinct.
+   */
+  const [kindOverride, setKindOverride] = useState<EntryKind | undefined>();
+  const [outcomeOverride, setOutcomeOverride] = useState<
+    EntryOutcome | undefined
+  >();
+  const [whenOverride, setWhenOverride] = useState<string | undefined>();
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
 
   const parsed: ParsedCapture | null = text.trim() ? parseCapture(text) : null;
+
+  const kind: EntryKind = kindOverride ?? parsed?.kind ?? "note";
+  const outcome: EntryOutcome =
+    outcomeOverride !== undefined ? outcomeOverride : (parsed?.outcome ?? null);
+  const when = whenOverride ?? forDateTimeInput(new Date());
 
   const stage = (files: File[]) =>
     setStaged((list) => [...list, ...files.map((file) => ({ file }))]);
@@ -48,7 +70,13 @@ export function useEntryComposer({
 
     start(async () => {
       const taskId = await resolveTaskId();
-      const event = await captureEvent({ taskId, text: body });
+      const event = await captureEvent({
+        taskId,
+        text: body,
+        kind,
+        outcome,
+        occurredAt: whenOverride ? new Date(whenOverride) : undefined,
+      });
 
       /*
        * Attachments need an entry to hang off, so they go second. The entry is
@@ -83,6 +111,10 @@ export function useEntryComposer({
 
       setText("");
       setStaged([]);
+      // Back to following the text for the next entry.
+      setKindOverride(undefined);
+      setOutcomeOverride(undefined);
+      setWhenOverride(undefined);
       setSaved(true);
       setTimeout(() => setSaved(false), 1800);
       textarea.current?.focus();
@@ -126,6 +158,20 @@ export function useEntryComposer({
     text,
     setText,
     parsed,
+    fields: {
+      kind,
+      outcome,
+      when,
+      onKind: setKindOverride,
+      onOutcome: setOutcomeOverride,
+      onWhen: setWhenOverride,
+      disabled: pending,
+    },
+    /** True once any of the three has been set by hand. */
+    fieldsTouched:
+      kindOverride !== undefined ||
+      outcomeOverride !== undefined ||
+      whenOverride !== undefined,
     staged,
     stage,
     unstage,

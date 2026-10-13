@@ -1,5 +1,6 @@
 "use client";
 
+import { EntryFields } from "@/components/entry-fields";
 import { EntryPreview } from "@/components/entry-preview";
 import { FileStaging } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
@@ -19,6 +20,10 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
         rows={3}
         placeholder="What happened? Paste ticket links or screenshots straight in."
       />
+
+      <div className="mt-3">
+        <EntryFields {...c.fields} />
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <Button onClick={c.submit} disabled={!c.canSave}>

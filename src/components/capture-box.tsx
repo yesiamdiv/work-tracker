@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { inboxTask } from "@/app/actions";
+import { EntryFields } from "@/components/entry-fields";
 import { EntryPreview } from "@/components/entry-preview";
 import { FileStaging } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
@@ -55,6 +56,17 @@ export function CaptureBox({
         rows={3}
         placeholder="What happened? Paste ticket or sheet links straight into the text, and screenshots too."
       />
+
+      <div className="mt-3">
+        <EntryFields
+          {...c.fields}
+          note={
+            c.fieldsTouched
+              ? undefined
+              : "These follow what you type — !bug, !pass and the rest move them. Set one by hand to override."
+          }
+        />
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <Meta className="text-muted">Add to</Meta>
