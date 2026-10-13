@@ -1,16 +1,27 @@
+import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Gate everything behind the login — unless auth is switched off, which it is
- * when no Google client is configured outside production. See src/lib/session.
+ * Gates the app, and signs you out when Google access has lapsed.
  *
- * Kept as plain middleware rather than the `auth()` wrapper so that the
- * unauthenticated POC does not need `AUTH_SECRET` either.
+ * Auth is switched off when no Google client is configured outside production,
+ * so the local POC needs neither credentials nor a secret. See src/lib/session.
+ *
+ * Deliberately not the `auth()` wrapper: reading the token directly keeps
+ * NextAuth from initialising on the path where auth is disabled and there is
+ * no AUTH_SECRET to initialise it with.
  */
 const authDisabled =
   process.env.NODE_ENV !== "production" && !process.env.AUTH_GOOGLE_ID;
 
-export function middleware(req: NextRequest) {
+const COOKIES = [
+  "authjs.session-token",
+  "__Secure-authjs.session-token",
+  "authjs.csrf-token",
+  "__Host-authjs.csrf-token",
+];
+
+export async function middleware(req: NextRequest) {
   if (authDisabled) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
@@ -18,15 +29,32 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Presence of the session cookie is enough to let the request through; the
-  // pages themselves verify it properly via `getSession()`.
-  const hasSession =
-    req.cookies.has("authjs.session-token") ||
-    req.cookies.has("__Secure-authjs.session-token");
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: req.nextUrl.protocol === "https:",
+  });
 
-  if (!hasSession) {
+  if (!token) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
+
+  /*
+   * Google expires the refresh token after seven days for an OAuth app on
+   * Testing status, which a Drive scope requires. Once it lapses nothing can
+   * recover it in the background, so rather than leave a session that looks
+   * signed in but cannot reach Drive, end it here and ask for a fresh one.
+   */
+  if (token.refreshFailed) {
+    const to = new URL("/login", req.nextUrl);
+    to.searchParams.set("expired", "1");
+    const response = NextResponse.redirect(to);
+    for (const name of COOKIES) {
+      response.cookies.set(name, "", { maxAge: 0, path: "/" });
+    }
+    return response;
+  }
+
   return NextResponse.next();
 }
 
