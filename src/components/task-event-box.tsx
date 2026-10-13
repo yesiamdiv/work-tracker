@@ -68,11 +68,9 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
         value={text}
         disabled={pending}
         onChange={(e) => setText(e.target.value)}
+        /* Enter inserts a newline; "Save entry" is the only way to commit. */
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
+          if (e.key === "Escape") setText("");
         }}
         onPaste={(e) => {
           const files = filesFromClipboard(e.nativeEvent);
@@ -127,7 +125,7 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
           onRemove={(i) => setStaged((list) => list.filter((_, j) => j !== i))}
         />
         <ImproveButton text={text} onAccept={setText} />
-        <Meta className="ml-auto">Enter to save</Meta>
+
       </div>
 
       {uploadError && (

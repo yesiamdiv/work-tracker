@@ -103,9 +103,10 @@ export function TaskPicker({
       e.preventDefault();
       setCursor((c) => Math.max(c - 1, 0));
     } else if (e.key === "Enter") {
+      // Enter picks an existing task — choosing one writes nothing. Creating a
+      // task does, so that stays a deliberate click.
       e.preventDefault();
-      if (canCreate && cursor === matches.length) create();
-      else if (matches[cursor]) choose(matches[cursor].id);
+      if (matches[cursor]) choose(matches[cursor].id);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);

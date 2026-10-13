@@ -8,7 +8,7 @@ import { KIND_LABEL, parseCapture } from "@/lib/capture";
 import { FileStaging, type Staged } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
 import { TaskPicker } from "@/components/task-picker";
-import { Label, Meta } from "@/components/ui";
+import { Button, Label, Meta } from "@/components/ui";
 import { filesFromClipboard, uploadFilesToEvent } from "@/lib/drive-upload";
 import { cn } from "@/lib/utils";
 
@@ -108,11 +108,12 @@ export function CaptureBox({
         value={text}
         disabled={pending}
         onChange={(e) => setText(e.target.value)}
+        /*
+          Enter inserts a newline. Saving is the button alone — an entry is a
+          real record, and a stray Enter mid-thought should never commit one.
+        */
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
+          if (e.key === "Escape") setText("");
         }}
         onPaste={(e) => {
           const files = filesFromClipboard(e.nativeEvent);
@@ -160,14 +161,15 @@ export function CaptureBox({
 
         <ImproveButton text={text} onAccept={setText} />
 
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-3">
           {pending ? (
             <Meta className="text-muted">Saving…</Meta>
           ) : saved ? (
             <Meta className="text-muted">Saved</Meta>
-          ) : (
-            <Meta>Enter to save · Shift+Enter for a new line</Meta>
-          )}
+          ) : null}
+          <Button onClick={submit} disabled={pending || !text.trim()}>
+            {pending ? "Saving…" : "Save entry"}
+          </Button>
         </span>
       </div>
 

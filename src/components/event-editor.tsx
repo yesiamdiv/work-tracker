@@ -7,7 +7,7 @@ import { updateEvent } from "@/app/actions";
 import { ImproveButton } from "@/components/improve-button";
 import { Button, Label, Meta } from "@/components/ui";
 import { KIND_LABEL, parseCapture } from "@/lib/capture";
-import type { Event } from "@/db/schema";
+import type { events } from "@/db/schema";
 
 const KINDS = Object.keys(KIND_LABEL) as (keyof typeof KIND_LABEL)[];
 const OUTCOMES = ["pass", "fail", "partial", "inconclusive"] as const;
@@ -25,11 +25,23 @@ function forInput(d: Date): string {
  * an edit the markers have already been stripped from the stored text, so
  * re-deriving them would silently reset a kind you had set on purpose.
  */
+/**
+ * The fields an editor needs — not the whole row, so the dashboard feed's
+ * lighter shape can use this as well as the task page's full entry.
+ */
+export type EditableEvent = {
+  id: string;
+  body: string;
+  kind: (typeof events.kind.enumValues)[number];
+  outcome: (typeof events.outcome.enumValues)[number] | null;
+  occurredAt: Date;
+};
+
 export function EventEditor({
   event,
   onDone,
 }: {
-  event: Event;
+  event: EditableEvent;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -76,11 +88,8 @@ export function EventEditor({
         value={body}
         disabled={pending}
         onChange={(e) => setBody(e.target.value)}
+        /* No keyboard shortcut for saving — the Save button is the only way. */
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            save();
-          }
           if (e.key === "Escape") onDone();
         }}
         className="w-full rounded-xs border border-line bg-raised px-3 py-2.5 text-body transition-colors focus:border-line-strong disabled:opacity-50"
