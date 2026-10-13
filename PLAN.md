@@ -244,6 +244,23 @@ saving an event is never slow.
       its keep once there is a lot of history, and every AI feature actually
       asked for lives in group one
 
+- [ ] **11** — Reuse pass. Things grew by copy-and-paste; this consolidates
+      them. Measured duplication, in the order it will be fixed:
+
+      | What | Copies | Where |
+      |---|---|---|
+      | Reference-kind labels (`REF_WORD`/`REF_GROUP`) | 4 | task page, subject page, subjects browser, event item |
+      | Sparkline SVG | 2 | stat tiles, subject tree |
+      | Raw `<textarea>` with its own class string | 6 | both compose boxes, event editor, both forms, AI compose |
+      | Subject chip (dot + parent prefix + link) | 3 | task row, sidebar, feed row |
+      | "No subject" fallback chip | 2 | task row, sidebar |
+      | Entry header strip (time · kind · outcome · links) | 2 | event item, feed row |
+      | Compose-an-entry logic (stage files, parse preview, save then upload) | 2 | capture box 239 lines, task entry box 138 |
+
+      The rule for this pass: extract only what is genuinely the same thing,
+      not what merely looks alike. A shared component that needs four booleans
+      to serve its callers is worse than two honest copies.
+
 **Deployment is still outstanding** — the app runs locally only, so it cannot
 be reached from a phone. That is the largest remaining gap between this and
 something usable day to day.
