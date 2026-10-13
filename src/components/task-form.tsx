@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { createTask, updateTask } from "@/app/actions";
+import { SubjectChips } from "@/components/subject-chips";
 import { Button, Input, Label, Select } from "@/components/ui";
 import { tasks } from "@/db/schema";
 
@@ -130,64 +130,12 @@ export function TaskForm({
         </label>
       )}
 
-      <div>
-        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
-          <Label>Subjects</Label>
-          {picked.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setPicked([])}
-              className="text-[13px] text-faint transition-colors hover:text-text"
-            >
-              Clear {picked.length} selected
-            </button>
-          )}
-        </div>
-
-        <p className="mb-2.5 text-[13px] text-faint">
-          Optional, and more than one is fine. Leave them all unticked if this
-          task is not about a particular subject — you can add one later.
-        </p>
-
-        {subjects.length ? (
-          <div className="divide-y divide-line overflow-hidden rounded-xs border border-line">
-            {subjects.map((s) => {
-              const on = picked.includes(s.id);
-              return (
-                <label
-                  key={s.id}
-                  className="rowlink flex cursor-pointer items-center gap-3 px-3 py-2.5"
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggle(s.id)}
-                    className="size-4 shrink-0 accent-neutral-400"
-                  />
-                  <span className={on ? "text-text" : "text-body"}>
-                    {s.label}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="rounded-xs border border-dashed border-line px-4 py-5 text-center text-muted">
-            No subjects exist yet.
-            <br />
-            <Link
-              href="/subjects/new"
-              className="extlink text-[13px] text-muted hover:text-text"
-            >
-              Create one
-            </Link>
-            <span className="text-[13px] text-faint">
-              {" "}
-              — or carry on without, it is not required.
-            </span>
-          </p>
-        )}
-      </div>
+      <SubjectChips
+        options={subjects}
+        picked={picked}
+        onToggle={toggle}
+        onClear={() => setPicked([])}
+      />
 
       <label className="block">
         <Label>Notes — optional</Label>

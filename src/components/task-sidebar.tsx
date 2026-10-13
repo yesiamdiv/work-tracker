@@ -68,39 +68,69 @@ export function TaskSidebar({
           const stale = isStale(t.lastActivityAt);
           return (
             <li key={t.id}>
-              <Link
-                href={selected ? "/" : `/?task=${t.id}`}
-                aria-current={selected ? "true" : undefined}
+              {/*
+                The row filters the dashboard to this task, but the subject
+                chips are their own links — so the row uses a stretched link
+                rather than wrapping everything in one <a>, which cannot
+                legally contain other links.
+              */}
+              <div
                 className={cn(
-                  "rowlink block rounded-xs border px-3 py-2.5",
-                  selected
-                    ? "border-line-strong bg-raised"
-                    : "border-transparent",
+                  "rowlink relative block rounded-xs border px-3 py-2.5",
+                  selected ? "border-line-strong bg-raised" : "border-transparent",
                 )}
               >
-                <span
+                <Link
+                  href={selected ? "/" : `/?task=${t.id}`}
+                  aria-current={selected ? "true" : undefined}
                   className={cn(
-                    "block text-[14px] leading-snug",
+                    "block text-[14px] leading-snug after:absolute after:inset-0 after:content-['']",
                     selected ? "text-text" : "text-body",
                   )}
                 >
                   {t.title}
-                </span>
+                </Link>
 
-                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  {t.subjects.slice(0, 2).map((s) => (
-                    <span key={s.id} className="inline-flex items-center gap-1">
-                      <Dot colour={s.colour} />
-                      <Meta>{s.name}</Meta>
-                    </span>
-                  ))}
+                <span className="relative z-10 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {t.subjects.length ? (
+                    <>
+                      {t.subjects.slice(0, 2).map((s) => (
+                        <Link
+                          key={s.id}
+                          href={`/s/${s.slug}`}
+                          title={
+                            s.parentName
+                              ? `${s.parentName} / ${s.name}`
+                              : `Subject: ${s.name}`
+                          }
+                          className="inline-flex items-center gap-1 rounded-xs border border-line px-1.5 py-[1px] text-[12.5px] text-muted transition-colors hover:border-line-strong hover:text-text"
+                        >
+                          <Dot colour={s.colour} />
+                          {s.name}
+                        </Link>
+                      ))}
+                      {t.subjects.length > 2 && (
+                        <Meta>+{t.subjects.length - 2} more</Meta>
+                      )}
+                    </>
+                  ) : (
+                    /* Say so rather than leave an empty gap. */
+                    <Link
+                      href={`/t/${t.id}/edit`}
+                      title="Not linked to any subject — click to add one"
+                      className="rounded-xs border border-dashed border-line px-1.5 py-[1px] text-[12.5px] text-faint transition-colors hover:border-line-strong hover:text-muted"
+                    >
+                      No subject
+                    </Link>
+                  )}
+
                   <Meta>· {t.eventCount}</Meta>
                   {/* Stale is stated in words — a dim dot would read as decoration. */}
                   <Meta className={stale ? "text-muted" : undefined}>
                     · {stale ? `quiet ${ago(t.lastActivityAt)}` : ago(t.lastActivityAt)}
                   </Meta>
                 </span>
-              </Link>
+              </div>
             </li>
           );
         })}
