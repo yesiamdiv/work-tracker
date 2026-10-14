@@ -37,6 +37,7 @@ export function FeedRow({
             kind: entry.kind,
             outcome: entry.outcome,
             occurredAt: new Date(entry.occurredAt),
+            attachments: entry.attachments,
           }}
           onDone={() => setEditing(false)}
         />

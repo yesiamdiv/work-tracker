@@ -40,6 +40,20 @@ const downloadUrl = (a: ShownAttachment) =>
     ? `https://drive.google.com/uc?export=download&id=${a.driveFileId}`
     : bytesUrl(a, true);
 
+const extension = (name: string) => {
+  const bit = name.split(".").pop();
+  return bit && bit.length <= 4 && bit !== name ? bit.toLowerCase() : "file";
+};
+
+/**
+ * Files on an entry: one row each, all the same shape.
+ *
+ * Images previously sat in a separate 150px grid, which cut their names in
+ * half and gave them different controls at different sizes from everything
+ * else. Now every file is a row with the same name, size and actions, and an
+ * image simply shows a thumbnail in the leading slot — which opens it full
+ * size, as does Open.
+ */
 export function AttachmentList({
   items,
   canRemove = true,
@@ -49,115 +63,65 @@ export function AttachmentList({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [broken, setBroken] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
 
   if (!items.length) return null;
 
-  const images = items.filter((a) => isImage(a) && !failed.has(a.id));
-  const others = items.filter((a) => !isImage(a) || failed.has(a.id));
-
-  function remove(id: string) {
-    start(async () => {
-      const result = await removeAttachment(id);
-      if (!result.ok) setError(result.error);
-      setRemoving(null);
-    });
-  }
-
-  function RemoveControl({ id }: { id: string }) {
-    if (!canRemove) return null;
-    return removing === id ? (
-      <span className="inline-flex shrink-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={() => remove(id)}
-          disabled={pending}
-          className="text-[12.5px] text-text underline decoration-line-strong underline-offset-[3px] disabled:opacity-50"
-        >
-          {pending ? "Removing…" : "Delete from Drive"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setRemoving(null)}
-          className="text-[12.5px] text-faint hover:text-muted"
-        >
-          Cancel
-        </button>
-      </span>
-    ) : (
-      <button
-        type="button"
-        onClick={() => setRemoving(id)}
-        className="shrink-0 text-[12.5px] text-faint transition-colors hover:text-text"
-      >
-        Remove
-      </button>
-    );
-  }
-
   return (
-    <div className="mt-2.5 space-y-2.5">
-      {/* Images: shown, and clicking one opens it full size. */}
-      {images.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {images.map((a) => (
-            <figure key={a.id} className="w-[150px]">
+    <div className="mt-2.5">
+      <Meta className="mb-1.5 block text-muted">
+        {items.length} file{items.length > 1 ? "s" : ""}
+      </Meta>
+
+      <ul className="divide-y divide-line overflow-hidden rounded-xs border border-line">
+        {items.map((a) => {
+          const showThumb = isImage(a) && !broken.has(a.id);
+          // Images open through the proxy so they display; anything else goes
+          // to Drive's viewer, which can actually render it.
+          const openHref = showThumb ? bytesUrl(a) : driveUrl(a);
+          const big = a.size != null && a.size > PROXY_LIMIT;
+
+          return (
+            <li key={a.id} className="flex items-center gap-3 px-3 py-2">
+              {/* Fixed leading slot keeps every name on the same line. */}
               <a
-                href={bytesUrl(a)}
+                href={openHref}
                 target="_blank"
                 rel="noreferrer"
-                title={`${a.name} — click to open full size`}
-                className="block overflow-hidden rounded-xs border border-line transition-colors hover:border-line-strong"
+                title={`Open ${a.name}`}
+                className="block size-10 shrink-0 overflow-hidden rounded-xs border border-line transition-colors hover:border-line-strong"
               >
-                {/* Plain img: the source is our own route, not a known host,
-                    so next/image would need it whitelisted for no gain. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={bytesUrl(a)}
-                  alt={a.name}
-                  loading="lazy"
-                  className="block h-[94px] w-full bg-raised object-cover"
-                  onError={() =>
-                    setFailed((s) => new Set(s).add(a.id))
-                  }
-                />
+                {showThumb ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={bytesUrl(a)}
+                    alt={a.name}
+                    loading="lazy"
+                    className="size-full bg-raised object-cover"
+                    onError={() => setBroken((s) => new Set(s).add(a.id))}
+                  />
+                ) : (
+                  <span className="flex size-full items-center justify-center bg-raised text-[10px] uppercase tracking-wide text-faint">
+                    {extension(a.name)}
+                  </span>
+                )}
               </a>
-              <figcaption className="mt-1 flex items-center gap-2">
-                <Meta className="min-w-0 flex-1 truncate" title={a.name}>
-                  {a.name}
-                </Meta>
-                <a
-                  href={downloadUrl(a)}
-                  className="extlink shrink-0 text-[12.5px] text-faint hover:text-text"
-                >
-                  Save
-                </a>
-                <RemoveControl id={a.id} />
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      )}
 
-      {/* Everything else: a row with both ways of getting at it. */}
-      {others.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-xs border border-line">
-          {others.map((a) => (
-            <li
-              key={a.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
-            >
-              <span
-                className="min-w-0 flex-1 truncate text-[13px] text-body"
-                title={a.name}
-              >
-                {a.name}
+              <span className="min-w-0 flex-1">
+                <span
+                  className="block truncate text-[13px] text-body"
+                  title={a.name}
+                >
+                  {a.name}
+                </span>
+                {a.size != null && (
+                  <Meta className="block">{humanSize(a.size)}</Meta>
+                )}
               </span>
-              {a.size != null && <Meta className="shrink-0">{humanSize(a.size)}</Meta>}
 
               <a
-                href={driveUrl(a)}
+                href={openHref}
                 target="_blank"
                 rel="noreferrer"
                 className="extlink shrink-0 text-[13px] text-muted hover:text-text"
@@ -166,19 +130,53 @@ export function AttachmentList({
               </a>
               <a
                 href={downloadUrl(a)}
-                target={a.size != null && a.size > PROXY_LIMIT ? "_blank" : undefined}
+                target={big ? "_blank" : undefined}
                 rel="noreferrer"
                 className="extlink shrink-0 text-[13px] text-muted hover:text-text"
               >
                 Download
               </a>
-              <RemoveControl id={a.id} />
-            </li>
-          ))}
-        </ul>
-      )}
 
-      {error && <Meta className="block text-body">{error}</Meta>}
+              {canRemove &&
+                (removing === a.id ? (
+                  <span className="flex shrink-0 items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        start(async () => {
+                          const r = await removeAttachment(a.id);
+                          if (!r.ok) setError(r.error);
+                          setRemoving(null);
+                        })
+                      }
+                      disabled={pending}
+                      className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] disabled:opacity-50"
+                    >
+                      {pending ? "Removing…" : "Delete from Drive"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRemoving(null)}
+                      className="text-[13px] text-faint hover:text-muted"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setRemoving(a.id)}
+                    className="shrink-0 text-[13px] text-faint transition-colors hover:text-text"
+                  >
+                    Remove
+                  </button>
+                ))}
+            </li>
+          );
+        })}
+      </ul>
+
+      {error && <Meta className="mt-1.5 block text-body">{error}</Meta>}
     </div>
   );
 }

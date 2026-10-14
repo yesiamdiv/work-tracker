@@ -10,6 +10,10 @@ import {
   forDateTimeInput,
   type EntryOutcome,
 } from "@/components/entry-fields";
+import {
+  AttachmentList,
+  type ShownAttachment,
+} from "@/components/attachment-list";
 import { FileStaging, type Staged } from "@/components/file-staging";
 import { ImproveButton } from "@/components/improve-button";
 import {
@@ -38,6 +42,8 @@ export type EditableEvent = {
   kind: (typeof events.kind.enumValues)[number];
   outcome: (typeof events.outcome.enumValues)[number] | null;
   occurredAt: Date;
+  /** Already uploaded, so they can be removed from here too. */
+  attachments?: ShownAttachment[];
 };
 
 export function EventEditor({
@@ -133,6 +139,11 @@ export function EventEditor({
           }
         }}
       />
+
+      {/* What is already attached — editing is where you would come to drop one. */}
+      {event.attachments && event.attachments.length > 0 && (
+        <AttachmentList items={event.attachments} />
+      )}
 
       <div className="mt-3">
         <EntryFields

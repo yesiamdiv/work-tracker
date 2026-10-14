@@ -36,7 +36,10 @@ export function EventItem({
   if (editing) {
     return (
       <article className="px-4 py-4">
-        <EventEditor event={event} onDone={() => setEditing(false)} />
+        <EventEditor
+          event={{ ...event, attachments: event.attachments ?? [] }}
+          onDone={() => setEditing(false)}
+        />
       </article>
     );
   }
