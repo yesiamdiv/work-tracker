@@ -1,3 +1,4 @@
+import { Clamp } from "@/components/clamp";
 import { Meta } from "@/components/ui";
 import { KIND_LABEL } from "@/lib/capture";
 import type { events } from "@/db/schema";
@@ -55,7 +56,17 @@ export function EntryMeta({
   );
 }
 
-/** A failed entry gets a rule down its side, never a colour. */
+/**
+ * An entry's text, with a failure marked by a rule down its side rather than a
+ * colour.
+ *
+ * Long entries are capped and opened on demand: a single pasted block of
+ * credentials or a stack trace would otherwise push every other entry off the
+ * screen, and the feed's whole job is letting you scan what happened.
+ *
+ * Only the text is capped. Links, files and the attach control sit below it and
+ * stay visible whether it is open or not — they are how you act on the entry.
+ */
 export function EntryBody({
   body,
   failed,
@@ -67,7 +78,9 @@ export function EntryBody({
 }) {
   return (
     <div className={failed ? "border-l border-line-strong pl-3" : ""}>
-      <p className="whitespace-pre-wrap break-words text-body">{body}</p>
+      <Clamp moreLabel="Show the rest" lessLabel="Show less">
+        <p className="whitespace-pre-wrap break-words text-body">{body}</p>
+      </Clamp>
       {children}
     </div>
   );

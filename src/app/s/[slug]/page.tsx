@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AiSummary } from "@/components/ai-summary";
+import { Clamp } from "@/components/clamp";
 import { DeleteControl } from "@/components/delete-control";
 import { TaskCollapseList } from "@/components/task-collapse-list";
 import {
@@ -109,9 +110,11 @@ export default async function SubjectPage({
         </div>
 
         {subject.description && (
-          <p className="mt-4 whitespace-pre-wrap border-t border-line pt-3.5 text-muted">
-            {subject.description}
-          </p>
+          <div className="mt-4 border-t border-line pt-3.5">
+            <Clamp maxHeight={140} moreLabel="Show all notes">
+              <p className="whitespace-pre-wrap text-muted">{subject.description}</p>
+            </Clamp>
+          </div>
         )}
 
         {!subject.parentId && (
