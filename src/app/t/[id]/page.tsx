@@ -141,7 +141,9 @@ export default async function TaskPage({
         </div>
       )}
 
-      <SectionLabel hint="Oldest first. Links found in an entry's text are saved with it.">
+      <TaskEventBox taskId={task.id} />
+
+      <SectionLabel hint="Newest first. Links found in an entry's text are saved with it.">
         Log
       </SectionLabel>
 
@@ -159,10 +161,8 @@ export default async function TaskPage({
           ))}
         </div>
       ) : (
-        <Empty>No entries yet. Add the first one below.</Empty>
+        <Empty>No entries yet. Add the first one above.</Empty>
       )}
-
-      <TaskEventBox taskId={task.id} />
     </>
   );
 }

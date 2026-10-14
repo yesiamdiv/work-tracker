@@ -11,12 +11,17 @@ import {
 import { Alert, Button, Label, Meta, Textarea } from "@/components/ui";
 import { useEntryComposer } from "@/components/use-entry-composer";
 
-/** Adds an entry to a task whose identity is already known. */
+/**
+ * Adds an entry to a task whose identity is already known.
+ *
+ * Sits above the log, which runs newest-first — with the newest at the top,
+ * an add box at the bottom would mean scrolling past every entry to write one.
+ */
 export function TaskEventBox({ taskId }: { taskId: string }) {
   const c = useEntryComposer({ resolveTaskId: async () => taskId });
 
   return (
-    <section className="mt-9 border-t border-line pt-7">
+    <section className="mb-9">
       <Label>Add an entry</Label>
 
       <Textarea

@@ -107,7 +107,9 @@ export async function taskDetail(taskId: string) {
       .select()
       .from(events)
       .where(eq(events.taskId, taskId))
-      .orderBy(events.occurredAt),
+      // Newest first, matching the dashboard and stream feeds. The AI summary
+      // runs its own ascending query, because a narrative reads forwards.
+      .orderBy(desc(events.occurredAt)),
     db.select().from(refs).where(eq(refs.taskId, taskId)),
     db
       .select({
