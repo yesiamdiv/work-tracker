@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import type { SubjectChip } from "@/db/queries";
 import { STALE_DAYS } from "@/db/stats";
@@ -29,14 +32,19 @@ function isStale(at: Date | string) {
  */
 export function TaskSidebar({
   tasks,
+  closed = [],
   selectedId,
 }: {
   tasks: Task[];
+  /** Finished tasks, hidden until asked for. */
+  closed?: Task[];
   selectedId?: string;
 }) {
+  const [showClosed, setShowClosed] = useState(false);
+
   return (
     <nav aria-label="Your tasks">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
         <h2 className="text-[13px] uppercase tracking-[0.1em] text-muted">
           Tasks
         </h2>
@@ -48,12 +56,20 @@ export function TaskSidebar({
         </Link>
       </div>
 
+      <p className="mb-3">
+        <Meta>
+          {tasks.length} open
+          {closed.length > 0 && ` · ${closed.length} finished`}
+        </Meta>
+      </p>
+
+      {/* This clears the feed filter, not the task list — say which. */}
       {selectedId && (
         <Link
           href="/"
-          className="extlink mb-2 block text-[13px] text-faint hover:text-muted"
+          className="extlink mb-2 block text-[13px] text-muted hover:text-text"
         >
-          ← Show everything
+          ← Stop filtering the log
         </Link>
       )}
 
@@ -110,6 +126,42 @@ export function TaskSidebar({
           );
         })}
       </ul>
+
+      {closed.length > 0 && (
+        <div className="mt-3 border-t border-line pt-3">
+          <button
+            type="button"
+            onClick={() => setShowClosed((v) => !v)}
+            aria-expanded={showClosed}
+            className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text"
+          >
+            {showClosed
+              ? "Hide finished"
+              : `Show ${closed.length} finished`}
+          </button>
+
+          {showClosed && (
+            <ul className="mt-2 space-y-1">
+              {closed.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/t/${t.id}`}
+                    className="rowlink block rounded-xs border border-transparent px-3 py-2"
+                  >
+                    <span className="block text-[14px] leading-snug text-muted line-through decoration-line-strong">
+                      {t.title}
+                    </span>
+                    <Meta>
+                      {t.status === "done" ? "done" : "dropped"} ·{" "}
+                      {t.eventCount} · {ago(t.lastActivityAt)}
+                    </Meta>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </nav>
   );
 }

@@ -6,7 +6,7 @@ import { StatTiles } from "@/components/stat-tiles";
 import { TaskSidebar } from "@/components/task-sidebar";
 import { Empty, Meta, SectionLabel } from "@/components/ui";
 import { feed } from "@/db/feed";
-import { openTasks } from "@/db/queries";
+import { closedTasks, openTasks } from "@/db/queries";
 import { activityByDay, dashboardStats, staleTasks, STALE_DAYS } from "@/db/stats";
 import { ago } from "@/lib/utils";
 
@@ -17,8 +17,9 @@ export default async function Dashboard({
 }) {
   const { task: selectedTask, view } = await searchParams;
 
-  const [tasks, stats, activity, entries, stale] = await Promise.all([
+  const [tasks, finished, stats, activity, entries, stale] = await Promise.all([
     openTasks(),
+    closedTasks(),
     dashboardStats(),
     activityByDay(28),
     feed({ taskId: selectedTask, limit: 25 }),
@@ -70,7 +71,11 @@ export default async function Dashboard({
       {/* Sidebar beside the log on desktop; stacked on a phone, capture first. */}
       <div className="flex flex-col gap-9 lg:flex-row lg:gap-10">
         <aside className="order-2 lg:order-1 lg:w-64 lg:shrink-0">
-          <TaskSidebar tasks={tasks} selectedId={selectedTask} />
+          <TaskSidebar
+            tasks={tasks}
+            closed={finished}
+            selectedId={selectedTask}
+          />
         </aside>
 
         <div className="order-1 min-w-0 flex-1 lg:order-2">

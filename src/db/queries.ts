@@ -48,6 +48,35 @@ export async function openTasks() {
   });
 }
 
+/**
+ * Finished tasks, most recently closed first.
+ *
+ * The sidebar hides these by default but has to be able to show them: four of
+ * nine tasks being invisible with no way to reach them reads as a bug, not as
+ * a filter.
+ */
+export async function closedTasks(limit = 25) {
+  return withRetry("closedTasks", async () => {
+    const rows = await db
+      .select({
+        id: tasks.id,
+        title: tasks.title,
+        type: tasks.type,
+        status: tasks.status,
+        priority: tasks.priority,
+        lastActivityAt: tasks.lastActivityAt,
+        startedAt: tasks.startedAt,
+        eventCount: EVENT_COUNT,
+      })
+      .from(tasks)
+      .where(inArray(tasks.status, ["done", "abandoned"]))
+      .orderBy(desc(tasks.lastActivityAt))
+      .limit(limit);
+
+    return attachSubjects(rows);
+  });
+}
+
 /** Subject chips for a set of tasks, in one query rather than N. */
 async function attachSubjects<T extends { id: string }>(rows: T[]) {
   if (!rows.length) return [] as (T & { subjects: SubjectChip[] })[];

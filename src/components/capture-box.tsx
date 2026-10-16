@@ -31,6 +31,19 @@ export function CaptureBox({
   defaultTargetId?: string;
 }) {
   const [targetId, setTargetId] = useState(defaultTargetId ?? targets[0]?.id);
+
+  /*
+   * Follow the task picked in the sidebar.
+   *
+   * `useState` only reads its argument on the first render, and navigating to
+   * /?task=<id> re-renders this component rather than remounting it — so the
+   * dropdown kept whatever it was first given and silently wrote entries to
+   * the wrong task. Syncing rather than keying on it so a half-typed entry
+   * survives the click.
+   */
+  useEffect(() => {
+    if (defaultTargetId) setTargetId(defaultTargetId);
+  }, [defaultTargetId]);
   // A task created from inside the picker, selectable before the refresh that
   // will deliver it in `targets`.
   const [extra, setExtra] = useState<CaptureTarget[]>([]);
