@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -172,6 +172,41 @@ export async function captureEvent(input: {
 
   const parsed = parseCapture(text);
   if (!parsed.body) return null;
+
+  /*
+   * Saving the same thing twice returns the first one instead of duplicating.
+   *
+   * A real pair of byte-identical multi-line entries appeared on one task four
+   * minutes apart, so whatever prompted the second submit — a save that did not
+   * look like it had landed, a double tap, a resubmitted form — the write has
+   * to be idempotent rather than trusting the UI to prevent it. Logging the
+   * same line twice within the window is, for a work log, always a mistake.
+   *
+   * Not a unique index: the same line genuinely can recur days later, so this
+   * is bounded by time rather than forbidden outright.
+   */
+  const DEDUPE_WINDOW_MINUTES = 10;
+  const [existing] = await db
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.taskId, input.taskId),
+        eq(events.body, parsed.body),
+        gte(
+          events.createdAt,
+          new Date(Date.now() - DEDUPE_WINDOW_MINUTES * 60_000),
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    console.warn(
+      `[capture] identical entry saved ${Math.round((Date.now() - existing.createdAt.getTime()) / 1000)}s ago on this task; returning it rather than duplicating`,
+    );
+    return existing;
+  }
 
   const [event] = await db
     .insert(events)
