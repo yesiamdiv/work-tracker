@@ -32,12 +32,29 @@ export type ProviderSpec = {
   models: Record<Tier, string>;
   /** Indicative $/1M tokens for the standard model, input/output. */
   price?: { in: number; out: number };
+  /**
+   * Roughly how many characters of log may be sent, and how many tokens the
+   * model may write back.
+   *
+   * There is no "unlimited" on offer: every provider has a context window, and
+   * exceeding it is a hard 400 rather than a graceful trim — so the ceiling has
+   * to exist. These are derived from each provider's real limits at about four
+   * characters per token, left well short of the window so the prompt and the
+   * reply both fit.
+   *
+   * `maxOutput` stays at or below 16,000 because anything larger needs
+   * streaming to avoid the HTTP request timing out, and 16,000 tokens is
+   * already some twelve thousand words of answer.
+   */
+  limits: { inputChars: number; maxOutput: number };
   notes?: string;
 };
 
 export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   claude: {
     id: "claude",
+    // 1M-token context window.
+    limits: { inputChars: 600_000, maxOutput: 16_000 },
     label: "Claude",
     kind: "anthropic",
     keyEnv: "ANTHROPIC_API_KEY",
@@ -52,6 +69,8 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
   openai: {
     id: "openai",
+    // 128k-token context window.
+    limits: { inputChars: 300_000, maxOutput: 16_000 },
     label: "ChatGPT (OpenAI)",
     kind: "openai",
     keyEnv: "OPENAI_API_KEY",
@@ -61,6 +80,8 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
   gemini: {
     id: "gemini",
+    // 1M-token window, but only 8k of output.
+    limits: { inputChars: 600_000, maxOutput: 8_192 },
     label: "Gemini",
     kind: "openai",
     keyEnv: "GEMINI_API_KEY",
@@ -73,6 +94,8 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
   deepseek: {
     id: "deepseek",
+    // 64k-token context window — the smallest offered here.
+    limits: { inputChars: 180_000, maxOutput: 8_000 },
     label: "DeepSeek",
     kind: "openai",
     keyEnv: "DEEPSEEK_API_KEY",
@@ -83,6 +106,8 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
   openrouter: {
     id: "openrouter",
+    // Varies by model, so deliberately conservative.
+    limits: { inputChars: 180_000, maxOutput: 8_000 },
     label: "OpenRouter",
     kind: "openai",
     keyEnv: "OPENROUTER_API_KEY",
@@ -98,6 +123,8 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
   ollama: {
     id: "ollama",
+    // Depends entirely on the local model.
+    limits: { inputChars: 100_000, maxOutput: 4_096 },
     label: "Ollama (local)",
     kind: "openai",
     keyEnv: null,

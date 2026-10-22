@@ -296,19 +296,22 @@ export type AskFilters = {
 };
 
 /**
- * How much of the log to put in front of the model.
+ * How much of the log goes in front of the model.
  *
- * Capped by characters rather than entry count, because one real entry here is
- * 13,000 characters: fifty of those would blow any context window while fifty
+ * There is no "no limit" available: every provider has a context window, and
+ * going past it is a hard 400 rather than a graceful trim. So the ceiling comes
+ * from whichever provider is in use — 600,000 characters on Gemini or Claude,
+ * 180,000 on DeepSeek, whose window is the smallest offered — rather than one
+ * number that is wrong for all of them.
+ *
+ * Measured in characters rather than entries because one real entry here is
+ * 13,000 characters: fifty of those would blow any window while fifty
  * one-liners would barely fill a page.
- *
- * 180,000 characters is roughly 45,000 tokens, which fits the smallest context
- * among the providers offered (DeepSeek at 64k) with room to spare, and is a
- * fraction of what Gemini or Claude allow. The first cap was 60,000, which the
- * log reached within three weeks of use — generous here costs nothing, since
- * the bill is driven by what is actually sent, not by the ceiling.
  */
-const MAX_CHARS = 180_000;
+async function inputBudget(): Promise<number> {
+  const { active } = await getAiConfig();
+  return active.spec.limits.inputChars;
+}
 
 function toFeedFilters(f: AskFilters): FeedFilters {
   const days = Number(f.days ?? 0) || 0;
@@ -394,7 +397,10 @@ function formatEntry(e: FeedEntry): string {
 }
 
 async function gatherFiltered(f: AskFilters) {
-  const { entries } = await feed(toFeedFilters(f));
+  const [{ entries }, maxChars] = await Promise.all([
+    feed(toFeedFilters(f)),
+    inputBudget(),
+  ]);
 
   // Oldest first: a narrative, and an answer about what changed, both read
   // forwards even though the page shows newest first.
@@ -406,7 +412,7 @@ async function gatherFiltered(f: AskFilters) {
 
   for (const e of ordered) {
     const line = formatEntry(e);
-    if (chars + line.length > MAX_CHARS) {
+    if (chars + line.length > maxChars) {
       dropped++;
       continue;
     }
@@ -469,7 +475,6 @@ export async function askAboutEntries(input: {
         : `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}`,
       tier: "standard",
       effort: question ? "high" : "medium",
-      maxTokens: 8000,
     });
 
     // Kept so an answer worked out once can be read again, with the filters

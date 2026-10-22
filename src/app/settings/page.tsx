@@ -3,6 +3,12 @@ import { Meta, PageTitle, SectionLabel } from "@/components/ui";
 import { getAiConfig, PROVIDERS } from "@/lib/ai";
 import { maskSecret } from "@/lib/secret";
 
+/**
+ * A big summary can take a while to generate, and Vercel kills a serverless
+ * function at ten seconds by default. Sixty is the Hobby plan's maximum.
+ */
+export const maxDuration = 60;
+
 /** Where to get a key, per provider. */
 const SIGNUP: Record<string, string> = {
   claude: "https://console.anthropic.com/settings/keys",

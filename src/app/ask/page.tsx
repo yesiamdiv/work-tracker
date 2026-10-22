@@ -9,6 +9,12 @@ import { Meta, PageTitle, SectionLabel } from "@/components/ui";
 import { subjectOptions } from "@/db/feed";
 import { getAiConfig } from "@/lib/ai";
 
+/**
+ * A big summary can take a while to generate, and Vercel kills a serverless
+ * function at ten seconds by default. Sixty is the Hobby plan's maximum.
+ */
+export const maxDuration = 60;
+
 /** Quick ranges, which are just the date filter pre-set. */
 const PRESETS = [
   { label: "Today", days: "1" },

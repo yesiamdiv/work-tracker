@@ -104,7 +104,7 @@ function claudeExtras(ask: Ask) {
 async function claudeText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const message = await claudeClient(config).messages.create({
     model: modelFrom(config, ask.tier),
-    max_tokens: ask.maxTokens ?? 16000,
+    max_tokens: ask.maxTokens ?? config.spec.limits.maxOutput,
     system: ask.system,
     ...claudeExtras(ask),
     messages: [{ role: "user", content: ask.user }],
@@ -128,7 +128,7 @@ async function claudeJson<T extends z.ZodType>(
 ): Promise<z.infer<T>> {
   const message = await claudeClient(config).messages.parse({
     model: modelFrom(config, ask.tier),
-    max_tokens: ask.maxTokens ?? 16000,
+    max_tokens: ask.maxTokens ?? config.spec.limits.maxOutput,
     system: ask.system,
     output_config: {
       effort: ask.effort ?? "medium",
@@ -170,7 +170,7 @@ async function openaiText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const completion = await openaiClient(config).chat.completions
     .create({
       model,
-      max_tokens: ask.maxTokens ?? 8000,
+      max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
       messages: [
         { role: "system", content: ask.system },
         { role: "user", content: ask.user },
@@ -242,7 +242,7 @@ async function openaiJsonCall(
   const completion = await openaiClient(config)
     .chat.completions.create({
       model,
-      max_tokens: ask.maxTokens ?? 8000,
+      max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
       ...(withFormat
         ? { response_format: { type: "json_object" as const } }
         : {}),

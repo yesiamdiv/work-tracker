@@ -21,6 +21,12 @@ import { subjectBySlug, subjectRefs, subjectTasks } from "@/db/queries";
 import { refs as refsTable } from "@/db/schema";
 import { refGroupTitle, refLabel } from "@/lib/ref-display";
 
+/**
+ * A big summary can take a while to generate, and Vercel kills a serverless
+ * function at ten seconds by default. Sixty is the Hobby plan's maximum.
+ */
+export const maxDuration = 60;
+
 type RefKind = (typeof refsTable.kind.enumValues)[number];
 
 export default async function SubjectPage({

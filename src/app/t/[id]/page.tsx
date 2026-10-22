@@ -22,6 +22,12 @@ import { taskDetail } from "@/db/queries";
 import { refLabel, refWord } from "@/lib/ref-display";
 import { byDay } from "@/lib/utils";
 
+/**
+ * A big summary can take a while to generate, and Vercel kills a serverless
+ * function at ten seconds by default. Sixty is the Hobby plan's maximum.
+ */
+export const maxDuration = 60;
+
 export default async function TaskPage({
   params,
 }: {
