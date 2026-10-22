@@ -381,3 +381,38 @@ export const settings = pgTable("settings", {
 });
 
 export type Setting = typeof settings.$inferSelect;
+
+/* ------------------------------------------------------------- answers --- */
+
+/**
+ * Every question asked of the assistant, and what came back.
+ *
+ * Worth keeping for the same reason the log itself is: an answer you worked out
+ * once is one you will want again, and knowing which filters and which model
+ * produced it is what makes it trustworthy months later. A summary is stored
+ * with a null question.
+ */
+export const answers = pgTable(
+  "answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Null for a summary, which was not asked as a question. */
+    question: text("question"),
+    answer: text("answer").notNull(),
+    /** The filters that chose the entries, so the selection can be reopened. */
+    filters: jsonb("filters").$type<Record<string, string>>(),
+    /** Said in words, for reading back without decoding the filters. */
+    scope: text("scope"),
+    provider: text("provider"),
+    model: text("model"),
+    entriesRead: integer("entries_read"),
+    /** The model ran out of room, so the answer is incomplete. */
+    truncated: integer("truncated").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("answers_created_idx").on(t.createdAt)],
+);
+
+export type Answer = typeof answers.$inferSelect;

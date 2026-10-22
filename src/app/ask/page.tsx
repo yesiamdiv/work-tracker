@@ -1,7 +1,8 @@
 import Link from "next/link";
 
-import { countFiltered, type AskFilters } from "@/app/ai-actions";
+import { countFiltered, savedAnswers, type AskFilters } from "@/app/ai-actions";
 import { AiCompose } from "@/components/ai-compose";
+import { AnswerHistory } from "@/components/answer-history";
 import { AskPanel } from "@/components/ask-panel";
 import { StreamFilters } from "@/components/stream-filters";
 import { Meta, PageTitle, SectionLabel } from "@/components/ui";
@@ -30,9 +31,10 @@ export default async function AskPage({
     (p) => p.ready && p.spec.id !== active.id,
   );
 
-  const [subjects, matched] = await Promise.all([
+  const [subjects, matched, history] = await Promise.all([
     subjectOptions(),
     ready ? countFiltered(filters) : Promise.resolve(0),
+    savedAnswers(),
   ]);
 
   const filtered = Object.entries(filters).some(
@@ -115,6 +117,13 @@ export default async function AskPage({
 
           <div className="mb-10">
             <AskPanel filters={filters} matched={matched} filtered={filtered} />
+          </div>
+
+          <SectionLabel hint="Every question and summary is kept, with the filters and model behind it.">
+            Asked before
+          </SectionLabel>
+          <div className="mb-10">
+            <AnswerHistory items={history} />
           </div>
 
           <SectionLabel hint="For when you would rather describe the work than fill in forms. Nothing is saved until you approve it.">

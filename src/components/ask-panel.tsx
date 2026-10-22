@@ -52,10 +52,15 @@ export function AskPanel({
         return;
       }
       setAnswer(result.data.answer);
+
+      const read = result.data.dropped
+        ? `Read ${result.data.used} entries; ${result.data.dropped} were left out as too much text for one request — narrow the filters to include them.`
+        : `Read all ${result.data.used} entries in the selection.`;
+
       setNote(
-        result.data.dropped
-          ? `Read ${result.data.used} entries. ${result.data.dropped} were left out — too much text for one request, so narrow the filters for a complete answer.`
-          : `Read all ${result.data.used} entries in the selection.`,
+        result.data.truncated
+          ? `${read} The answer above stopped before it finished — ask for something more specific, or fewer things at once.`
+          : `${read} Saved below.`,
       );
     });
   }

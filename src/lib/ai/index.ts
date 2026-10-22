@@ -35,13 +35,36 @@ export type Ask = {
   maxTokens?: number;
 };
 
-/** Plain text in, plain text out — all three features need only this. */
-export async function askText(ask: Ask): Promise<string> {
+export type Answer = {
+  text: string;
+  /** The model ran out of output room; the text is real but incomplete. */
+  truncated: boolean;
+};
+
+/**
+ * Plain text in, text plus whether it was cut off out.
+ *
+ * Truncation used to throw, which discarded a perfectly good partial answer
+ * and told the person to narrow their input — advice that does not help, since
+ * the limit is on what the model writes, not on what it reads.
+ */
+export async function askAnswer(ask: Ask): Promise<Answer> {
   const { active } = await getAiConfig();
   if (!active.ready) throw new AiNotConfigured(active.spec);
   return active.spec.kind === "anthropic"
     ? claudeText(active, ask)
     : openaiText(active, ask);
+}
+
+/** For callers that cannot use a partial answer. */
+export async function askText(ask: Ask): Promise<string> {
+  const { text, truncated } = await askAnswer(ask);
+  if (truncated) {
+    throw new Error(
+      "The reply was cut off before it finished. Try asking for something shorter.",
+    );
+  }
+  return text;
 }
 
 /**
@@ -78,7 +101,7 @@ function claudeExtras(ask: Ask) {
   return { output_config: { effort: ask.effort ?? "medium" } } as const;
 }
 
-async function claudeText(config: ProviderConfig, ask: Ask): Promise<string> {
+async function claudeText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const message = await claudeClient(config).messages.create({
     model: modelFrom(config, ask.tier),
     max_tokens: ask.maxTokens ?? 16000,
@@ -88,11 +111,14 @@ async function claudeText(config: ProviderConfig, ask: Ask): Promise<string> {
   });
 
   assertUsable(message);
-  return message.content
+  const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();
+
+  if (!text) throw new Error("Claude returned an empty response.");
+  return { text, truncated: message.stop_reason === "max_tokens" };
 }
 
 async function claudeJson<T extends z.ZodType>(
@@ -126,9 +152,6 @@ function assertUsable(message: Anthropic.Message): void {
       `Claude declined this one (${message.stop_details?.explanation ?? "no reason given"}).`,
     );
   }
-  if (message.stop_reason === "max_tokens") {
-    throw new Error("The answer was cut short. Try a narrower range.");
-  }
 }
 
 /* ------------------------------------------------- openai-compatible ------ */
@@ -141,13 +164,13 @@ function openaiClient(config: ProviderConfig): OpenAI {
   });
 }
 
-async function openaiText(config: ProviderConfig, ask: Ask): Promise<string> {
+async function openaiText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const spec = config.spec;
   const model = modelFrom(config, ask.tier);
   const completion = await openaiClient(config).chat.completions
     .create({
       model,
-      max_tokens: ask.maxTokens ?? 4096,
+      max_tokens: ask.maxTokens ?? 8000,
       messages: [
         { role: "system", content: ask.system },
         { role: "user", content: ask.user },
@@ -158,12 +181,9 @@ async function openaiText(config: ProviderConfig, ask: Ask): Promise<string> {
     });
 
   const choice = completion.choices[0];
-  if (choice?.finish_reason === "length") {
-    throw new Error("The answer was cut short. Try a narrower range.");
-  }
   const text = choice?.message?.content?.trim();
   if (!text) throw new Error(`${spec.label} returned an empty response.`);
-  return text;
+  return { text, truncated: choice?.finish_reason === "length" };
 }
 
 async function openaiJson<T extends z.ZodType>(
@@ -222,7 +242,7 @@ async function openaiJsonCall(
   const completion = await openaiClient(config)
     .chat.completions.create({
       model,
-      max_tokens: ask.maxTokens ?? 4096,
+      max_tokens: ask.maxTokens ?? 8000,
       ...(withFormat
         ? { response_format: { type: "json_object" as const } }
         : {}),

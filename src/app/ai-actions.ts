@@ -1,13 +1,21 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
-import { events, refs, subjects, tasks } from "@/db/schema";
+import { answers, events, refs, subjects, tasks } from "@/db/schema";
 import { asUuid, feed, type FeedEntry, type FeedFilters } from "@/db/feed";
-import { aiErrorMessage, askJson, askText, getAiConfig } from "@/lib/ai";
+import {
+  aiErrorMessage,
+  askAnswer,
+  askJson,
+  askText,
+  getAiConfig,
+  modelFrom,
+} from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
 import { getSession } from "@/lib/session";
 import { subjectFilterIds } from "@/lib/subjects";
@@ -431,7 +439,14 @@ Rules:
 export async function askAboutEntries(input: {
   filters: AskFilters;
   question?: string;
-}): Promise<AiResult<{ answer: string; used: number; dropped: number }>> {
+}): Promise<
+  AiResult<{
+    answer: string;
+    used: number;
+    dropped: number;
+    truncated: boolean;
+  }>
+> {
   return guard(async () => {
     const { lines, used, dropped, total } = await gatherFiltered(input.filters);
 
@@ -446,16 +461,35 @@ export async function askAboutEntries(input: {
     const scope = await describeFilters(input.filters);
     const question = input.question?.trim();
 
-    const answer = await askText({
+    const config = await getAiConfig();
+    const { text, truncated } = await askAnswer({
       system: question ? ASK_SYSTEM : SUMMARY_SYSTEM,
       user: question
         ? `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}\n\n---\nQuestion: ${question}`
         : `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}`,
       tier: "standard",
       effort: question ? "high" : "medium",
+      maxTokens: 8000,
     });
 
-    return { answer, used, dropped };
+    // Kept so an answer worked out once can be read again, with the filters
+    // and the model that produced it — which is what makes it trustworthy
+    // months later.
+    await db.insert(answers).values({
+      question: question ?? null,
+      answer: text,
+      filters: Object.fromEntries(
+        Object.entries(input.filters).filter(([, v]) => v),
+      ) as Record<string, string>,
+      scope,
+      provider: config.activeId,
+      model: modelFrom(config.active, "standard"),
+      entriesRead: used,
+      truncated: truncated ? 1 : 0,
+    });
+    revalidatePath("/ask");
+
+    return { answer: text, used, dropped, truncated };
   });
 }
 
@@ -463,4 +497,24 @@ export async function askAboutEntries(input: {
 export async function countFiltered(filters: AskFilters): Promise<number> {
   const { entries } = await feed(toFeedFilters(filters));
   return entries.length;
+}
+
+/* ------------------------------------------------------- saved answers --- */
+
+export async function savedAnswers(limit = 20) {
+  return withRetry("savedAnswers", () =>
+    db
+      .select()
+      .from(answers)
+      .orderBy(desc(answers.createdAt))
+      .limit(limit),
+  );
+}
+
+export async function deleteAnswer(id: string): Promise<AiResult<null>> {
+  return guard(async () => {
+    await db.delete(answers).where(eq(answers.id, id));
+    revalidatePath("/ask");
+    return null;
+  });
 }
