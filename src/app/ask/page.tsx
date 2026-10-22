@@ -1,37 +1,58 @@
-import { summarise } from "@/app/ai-actions";
 import Link from "next/link";
 
+import { countFiltered, type AskFilters } from "@/app/ai-actions";
 import { AiCompose } from "@/components/ai-compose";
-import { AiSummary } from "@/components/ai-summary";
+import { AskPanel } from "@/components/ask-panel";
+import { StreamFilters } from "@/components/stream-filters";
 import { Meta, PageTitle, SectionLabel } from "@/components/ui";
+import { subjectOptions } from "@/db/feed";
 import { getAiConfig } from "@/lib/ai";
 
-const PERIODS = [
-  { days: 1, label: "day", title: "Today" },
-  { days: 7, label: "week", title: "This week" },
-  { days: 30, label: "month", title: "This month" },
+/** Quick ranges, which are just the date filter pre-set. */
+const PRESETS = [
+  { label: "Today", days: "1" },
+  { label: "Last 7 days", days: "7" },
+  { label: "Last 30 days", days: "30" },
+  { label: "Last 90 days", days: "90" },
 ];
 
-export default async function AskPage() {
+export default async function AskPage({
+  searchParams,
+}: {
+  searchParams: Promise<AskFilters>;
+}) {
+  const filters = await searchParams;
   const config = await getAiConfig();
   const ready = config.active.ready;
   const active = config.active.spec;
+
   const others = Object.values(config.providers).filter(
     (p) => p.ready && p.spec.id !== active.id,
   );
 
+  const [subjects, matched] = await Promise.all([
+    subjectOptions(),
+    ready ? countFiltered(filters) : Promise.resolve(0),
+  ]);
+
+  const filtered = Object.entries(filters).some(
+    ([k, v]) => v && k !== "page",
+  );
+
   return (
     <>
-      <PageTitle sub="Summaries are written from your own entries and nothing else — the model is told never to add anything the log does not say.">
+      <PageTitle sub="Narrow the log to the part you mean, then ask about it. Answers come from those entries and nothing else — the model is told never to add what the log does not say.">
         Assistant
       </PageTitle>
 
-      {/* The detail lives on the settings page; here just say what is answering. */}
-      <p className="mb-9 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xs border border-line px-4 py-3">
+      <p className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xs border border-line px-4 py-3">
         <Meta className="text-muted">
           Using <span className="text-body">{active.label}</span>
           {config.active.model && (
-            <> · <span className="text-body">{config.active.model}</span></>
+            <>
+              {" · "}
+              <span className="text-body">{config.active.model}</span>
+            </>
           )}
         </Meta>
         <Link
@@ -57,26 +78,43 @@ export default async function AskPage() {
         </p>
       ) : (
         <>
-          <SectionLabel hint="Written on demand, not on page load — each one is a real request that costs money.">
-            Summarise a period
+          <SectionLabel hint="The same filters as the Stream page. Whatever they select is what the assistant reads — and the selection lives in the address bar, so a useful one is a link you can keep.">
+            Choose what to ask about
           </SectionLabel>
 
-          <div className="mb-10 space-y-3">
-            {PERIODS.map((p) => (
-              <AiSummary
+          {/* Presets are just the date filter, which is the one people reach for. */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {PRESETS.map((p) => (
+              <Link
                 key={p.days}
-                title={p.title}
-                cta="Summarise"
-                run={async () => {
-                  "use server";
-                  return summarise({
-                    type: "period",
-                    days: p.days,
-                    label: p.label,
-                  });
-                }}
-              />
+                href={`/ask?days=${p.days}`}
+                className={`rounded-xs border px-2.5 py-1 text-[13px] transition-colors ${
+                  filters.days === p.days
+                    ? "border-accent bg-raised text-text"
+                    : "border-line text-muted hover:border-line-strong hover:bg-raised hover:text-text"
+                }`}
+              >
+                {p.label}
+              </Link>
             ))}
+            {filtered && (
+              <Link
+                href="/ask"
+                className="extlink ml-1 text-[13px] text-faint hover:text-text"
+              >
+                Clear all
+              </Link>
+            )}
+          </div>
+
+          <StreamFilters
+            subjects={subjects}
+            basePath="/ask"
+            searchLabel="Only entries containing this text"
+          />
+
+          <div className="mb-10">
+            <AskPanel filters={filters} matched={matched} filtered={filtered} />
           </div>
 
           <SectionLabel hint="For when you would rather describe the work than fill in forms. Nothing is saved until you approve it.">

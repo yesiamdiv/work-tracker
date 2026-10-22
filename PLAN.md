@@ -239,10 +239,17 @@ saving an event is never slow.
       request body limit is smaller than a screen recording. Files land in
       `Work Tracker/<subject>/<task>` so they stay navigable without the app
 - [ ] **9** — Stats page, `Cmd-K` palette, Friday digest
-- [ ] **10** — AI, second group. Open-ended questions over the whole history,
-      which needs embeddings and pgvector. Deferred deliberately: it only earns
-      its keep once there is a lot of history, and every AI feature actually
-      asked for lives in group one
+- [x] **10** — Open-ended questions over the history, **without** embeddings.
+      The assistant page carries the Stream page's filters, and whatever they
+      select is what the model reads. The filters *are* the retrieval, so there
+      is no vector index to build or keep current — and the person chooses the
+      scope, which beats a similarity search guessing at it.
+      Capped at 60,000 characters rather than a number of entries, because one
+      real entry here is 13,000 characters. At present the whole log is 52,861,
+      so everything fits in a single request; past the cap the page reports how
+      many entries were left out rather than quietly answering from a slice.
+      pgvector becomes worth it only when the log no longer fits and filtering
+      cannot narrow it enough — not yet, and possibly never for one person
 
 - [ ] **11** — Reuse pass. Things grew by copy-and-paste; this consolidates
       them. Measured duplication, in the order it will be fixed:

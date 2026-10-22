@@ -22,8 +22,13 @@ const RANGES = [
  */
 export function StreamFilters({
   subjects,
+  basePath = "/stream",
+  searchLabel = "Search the text of your entries",
 }: {
   subjects: { id: string; label: string }[];
+  /** Where the filters write to — the stream, or the assistant page. */
+  basePath?: string;
+  searchLabel?: string;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -42,7 +47,7 @@ export function StreamFilters({
     }
     next.delete("page");
     const s = next.toString();
-    router.push(s ? `/stream?${s}` : "/stream");
+    router.push(s ? `${basePath}?${s}` : basePath);
   }
 
   const selectCls =
@@ -56,10 +61,10 @@ export function StreamFilters({
           apply({ q });
         }}
       >
-        <Label>Search the text of your entries</Label>
+        <Label>{searchLabel}</Label>
         <div className="flex gap-2">
           <input
-            aria-label="Search the text of your entries"
+            aria-label={searchLabel}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="e.g. reconnect, sleep current, ACME-4421"

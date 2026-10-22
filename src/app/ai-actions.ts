@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
 import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
+import { feed, type FeedFilters } from "@/db/feed";
 import { aiErrorMessage, askJson, askText, getAiConfig } from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
 import { getSession } from "@/lib/session";
@@ -350,4 +351,156 @@ export async function acceptProposal(
 
     return { taskId: task.id };
   });
+}
+
+/* ------------------------------------------------- ask about a selection --- */
+
+/**
+ * The filters as they arrive from the URL — strings, so the whole thing
+ * crosses the server-action boundary without needing Dates rehydrated.
+ */
+export type AskFilters = {
+  q?: string;
+  subject?: string;
+  kind?: string;
+  outcome?: string;
+  refs?: string;
+  days?: string;
+  task?: string;
+};
+
+/**
+ * How much of the log to put in front of the model.
+ *
+ * Capped by characters rather than entry count, because one real entry here is
+ * 13,000 characters: fifty of those would blow any context window while fifty
+ * one-liners would barely fill a page.
+ */
+const MAX_CHARS = 60_000;
+
+function toFeedFilters(f: AskFilters): FeedFilters {
+  const days = Number(f.days ?? 0) || 0;
+  return {
+    q: f.q,
+    subjectId: f.subject || undefined,
+    taskId: f.task || undefined,
+    kind: events.kind.enumValues.includes(f.kind as never)
+      ? (f.kind as FeedFilters["kind"])
+      : undefined,
+    outcome: events.outcome.enumValues.includes(f.outcome as never)
+      ? (f.outcome as FeedFilters["outcome"])
+      : undefined,
+    withRefs: f.refs === "1",
+    from: days ? new Date(Date.now() - days * 86_400_000) : undefined,
+    limit: 200,
+  };
+}
+
+/** Says in words what the filters select, so the model knows the scope. */
+async function describeFilters(f: AskFilters): Promise<string> {
+  const parts: string[] = [];
+  if (f.q) parts.push(`matching "${f.q}"`);
+  if (f.subject) {
+    const [s] = await db
+      .select({ name: subjects.name })
+      .from(subjects)
+      .where(eq(subjects.id, f.subject))
+      .limit(1);
+    if (s) parts.push(`about ${s.name} (including its parts)`);
+  }
+  if (f.task) {
+    const [t] = await db
+      .select({ title: tasks.title })
+      .from(tasks)
+      .where(eq(tasks.id, f.task))
+      .limit(1);
+    if (t) parts.push(`on the task "${t.title}"`);
+  }
+  if (f.kind) parts.push(`of kind ${f.kind.replace(/_/g, " ")}`);
+  if (f.outcome) parts.push(`with outcome ${f.outcome}`);
+  if (f.refs === "1") parts.push("that carry a link");
+  if (f.days) parts.push(`from the last ${f.days} days`);
+  return parts.length ? `Entries ${parts.join(", ")}` : "All entries";
+}
+
+async function gatherFiltered(f: AskFilters) {
+  const { entries } = await feed(toFeedFilters(f));
+
+  // Oldest first: a narrative, and an answer about what changed, both read
+  // forwards even though the page shows newest first.
+  const ordered = [...entries].reverse();
+
+  const lines: string[] = [];
+  let chars = 0;
+  let dropped = 0;
+
+  for (const e of ordered) {
+    const date = e.occurredAt.toISOString().slice(0, 16).replace("T", " ");
+    const outcome = e.outcome ? `/${e.outcome}` : "";
+    const line = `${date} (${KIND_LABEL[e.kind]}${outcome}) [${e.taskTitle}]: ${e.body}`;
+    if (chars + line.length > MAX_CHARS) {
+      dropped++;
+      continue;
+    }
+    chars += line.length;
+    lines.push(line);
+  }
+
+  return { lines, used: lines.length, dropped, total: entries.length };
+}
+
+const ASK_SYSTEM = `You answer questions about a QA engineer's own work log. The entries below are the whole of what you know.
+
+Rules:
+- Answer only from the entries. If they do not say, reply that the log does not record it.
+- Be specific: name the dates, builds, devices, ticket keys and numbers that appear.
+- Quote the engineer's own wording for anything technical rather than paraphrasing it.
+- Cite the date of an entry you rely on, like (12 Oct).
+- Never invent a ticket, a result or a cause.
+- Answer in a few sentences or short bullets. No preamble, no sign-off.
+- Plain text. No markdown bold, no emoji.`;
+
+/**
+ * Answers a question about whatever the filters select, or summarises it when
+ * no question is given.
+ *
+ * This is the "ask across history" feature, scoped by explicit filters rather
+ * than by embedding search — the person picks the set, so there is nothing to
+ * retrieve and no vector index to keep current.
+ */
+export async function askAboutEntries(input: {
+  filters: AskFilters;
+  question?: string;
+}): Promise<AiResult<{ answer: string; used: number; dropped: number }>> {
+  return guard(async () => {
+    const { lines, used, dropped, total } = await gatherFiltered(input.filters);
+
+    if (!lines.length) {
+      throw new Error(
+        total
+          ? "Those entries are too long to send in one go. Narrow the filters."
+          : "No entries match those filters.",
+      );
+    }
+
+    const scope = await describeFilters(input.filters);
+    const question = input.question?.trim();
+
+    const answer = await askText({
+      system: question ? ASK_SYSTEM : SUMMARY_SYSTEM,
+      user: question
+        ? `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}\n\n---\nQuestion: ${question}`
+        : `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}`,
+      tier: "standard",
+      effort: question ? "high" : "medium",
+    });
+
+    return { answer, used, dropped };
+  });
+}
+
+/** How many entries the filters currently select, for the page to show. */
+export async function countFiltered(filters: AskFilters): Promise<number> {
+  const { entries } = await feed(toFeedFilters(filters));
+  return entries.length;
 }
