@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { deleteSubject, subjectDeleteImpact } from "@/app/actions";
 import { summariseSubject } from "@/app/ai-actions";
-import { providerReady } from "@/lib/ai";
+import { getAiConfig } from "@/lib/ai";
 import { subjectBySlug, subjectRefs, subjectTasks } from "@/db/queries";
 import { refs as refsTable } from "@/db/schema";
 import { refGroupTitle, refLabel } from "@/lib/ref-display";
@@ -36,6 +36,8 @@ export default async function SubjectPage({
     subjectTasks(subject.id),
     subjectRefs(subject.id),
   ]);
+
+  const aiReady = (await getAiConfig()).active.ready;
 
   const open = tasks.filter(
     (t) => t.status !== "done" && t.status !== "abandoned",
@@ -124,7 +126,7 @@ export default async function SubjectPage({
         )}
       </header>
 
-      {providerReady() && tasks.length > 0 && (
+      {aiReady && tasks.length > 0 && (
         <div className="mb-10">
           <AiSummary
             title="Where this stands"

@@ -1,9 +1,10 @@
 import { summarise } from "@/app/ai-actions";
+import Link from "next/link";
+
 import { AiCompose } from "@/components/ai-compose";
 import { AiSummary } from "@/components/ai-summary";
-import { ProviderStatus } from "@/components/provider-status";
 import { Meta, PageTitle, SectionLabel } from "@/components/ui";
-import { activeProvider, configuredProviders, providerReady } from "@/lib/ai";
+import { getAiConfig } from "@/lib/ai";
 
 const PERIODS = [
   { days: 1, label: "day", title: "Today" },
@@ -11,10 +12,13 @@ const PERIODS = [
   { days: 30, label: "month", title: "This month" },
 ];
 
-export default function AskPage() {
-  const ready = providerReady();
-  const active = activeProvider();
-  const others = configuredProviders().filter((p) => p.id !== active.id);
+export default async function AskPage() {
+  const config = await getAiConfig();
+  const ready = config.active.ready;
+  const active = config.active.spec;
+  const others = Object.values(config.providers).filter(
+    (p) => p.ready && p.spec.id !== active.id,
+  );
 
   return (
     <>
@@ -22,19 +26,33 @@ export default function AskPage() {
         Assistant
       </PageTitle>
 
-      <div className="mb-9">
-        <ProviderStatus />
-      </div>
+      {/* The detail lives on the settings page; here just say what is answering. */}
+      <p className="mb-9 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xs border border-line px-4 py-3">
+        <Meta className="text-muted">
+          Using <span className="text-body">{active.label}</span>
+          {config.active.model && (
+            <> · <span className="text-body">{config.active.model}</span></>
+          )}
+        </Meta>
+        <Link
+          href="/settings"
+          className="extlink ml-auto text-[13px] text-muted hover:text-text"
+        >
+          Change provider or model
+        </Link>
+      </p>
 
       {!ready ? (
         <p className="rounded-xs border border-dashed border-line px-4 py-7 text-center text-muted">
-          {active.label} is selected but{" "}
-          <span className="text-body">{active.keyEnv}</span> is not set in{" "}
-          <span className="text-body">.env.local</span>.
+          {active.label} is selected but has no API key yet.
           <Meta className="mt-2 block">
+            Add one under{" "}
+            <Link href="/settings" className="extlink text-muted hover:text-text">
+              Settings
+            </Link>
             {others.length
-              ? `Or set AI_PROVIDER to one that is ready: ${others.map((p) => p.id).join(", ")}.`
-              : "Ollama needs no key — set AI_PROVIDER=ollama to run a model locally for free."}
+              ? `, or switch there to one that is ready: ${others.map((p) => p.spec.label).join(", ")}.`
+              : "."}
           </Meta>
         </p>
       ) : (

@@ -80,10 +80,15 @@ gaps only show up in use.
 
 ## The assistant
 
-Six providers, one seam. Set `AI_PROVIDER` in `.env.local` to `claude`,
-`openai`, `gemini`, `deepseek`, `openrouter` or `ollama`, and set that
-provider's key. The `/ask` page shows which are ready and what each costs per
-100 summaries.
+Six providers, one seam, configured at **`/settings`** — pick the provider,
+paste a key, override the model, and press Test. No redeploy, no environment
+variables. Keys are encrypted with `AUTH_SECRET` before being stored and are
+never sent back to the browser; the page shows a masked hint instead.
+
+Environment variables (`AI_PROVIDER`, `AI_MODEL`, `<PROVIDER>_API_KEY`) still
+work and act as the fallback when nothing is saved in the app, so an existing
+deployment keeps running and a key can still be injected by the platform if
+you prefer that.
 
 Claude is called through the Anthropic SDK and is the only one that constrains
 JSON to the schema server-side. The other five expose OpenAI-compatible

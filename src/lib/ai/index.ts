@@ -3,21 +3,22 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import OpenAI from "openai";
 import type { z } from "zod";
 
+
 import {
-  activeProvider,
-  modelFor,
-  providerReady,
-  type ProviderSpec,
-  type Tier,
-} from "./providers";
+  getAiConfig,
+  modelFrom,
+  type ProviderConfig,
+} from "./config";
+import { PROVIDERS, type ProviderSpec, type Tier } from "./providers";
 
 export * from "./providers";
+export * from "./config";
 
 export class AiNotConfigured extends Error {
   constructor(spec: ProviderSpec) {
     super(
       spec.keyEnv
-        ? `${spec.label} is selected but ${spec.keyEnv} is not set. Add it to .env.local and restart.`
+        ? `${spec.label} is selected but has no API key. Add one under Settings.`
         : `${spec.label} is selected but unreachable.`,
     );
   }
@@ -36,9 +37,11 @@ export type Ask = {
 
 /** Plain text in, plain text out — all three features need only this. */
 export async function askText(ask: Ask): Promise<string> {
-  const spec = activeProvider();
-  if (!providerReady(spec)) throw new AiNotConfigured(spec);
-  return spec.kind === "anthropic" ? claudeText(spec, ask) : openaiText(spec, ask);
+  const { active } = await getAiConfig();
+  if (!active.ready) throw new AiNotConfigured(active.spec);
+  return active.spec.kind === "anthropic"
+    ? claudeText(active, ask)
+    : openaiText(active, ask);
 }
 
 /**
@@ -53,17 +56,17 @@ export async function askJson<T extends z.ZodType>(
   ask: Ask,
   schema: T,
 ): Promise<z.infer<T>> {
-  const spec = activeProvider();
-  if (!providerReady(spec)) throw new AiNotConfigured(spec);
-  return spec.kind === "anthropic"
-    ? claudeJson(spec, ask, schema)
-    : openaiJson(spec, ask, schema);
+  const { active } = await getAiConfig();
+  if (!active.ready) throw new AiNotConfigured(active.spec);
+  return active.spec.kind === "anthropic"
+    ? claudeJson(active, ask, schema)
+    : openaiJson(active, ask, schema);
 }
 
 /* ---------------------------------------------------------------- claude --- */
 
-let anthropic: Anthropic | null = null;
-const claudeClient = () => (anthropic ??= new Anthropic());
+const claudeClient = (config: ProviderConfig) =>
+  new Anthropic({ apiKey: config.apiKey ?? undefined });
 
 /**
  * Haiku 4.5 rejects `output_config.effort`, and takes a thinking budget rather
@@ -75,9 +78,9 @@ function claudeExtras(ask: Ask) {
   return { output_config: { effort: ask.effort ?? "medium" } } as const;
 }
 
-async function claudeText(spec: ProviderSpec, ask: Ask): Promise<string> {
-  const message = await claudeClient().messages.create({
-    model: modelFor(ask.tier, spec),
+async function claudeText(config: ProviderConfig, ask: Ask): Promise<string> {
+  const message = await claudeClient(config).messages.create({
+    model: modelFrom(config, ask.tier),
     max_tokens: ask.maxTokens ?? 16000,
     system: ask.system,
     ...claudeExtras(ask),
@@ -93,12 +96,12 @@ async function claudeText(spec: ProviderSpec, ask: Ask): Promise<string> {
 }
 
 async function claudeJson<T extends z.ZodType>(
-  spec: ProviderSpec,
+  config: ProviderConfig,
   ask: Ask,
   schema: T,
 ): Promise<z.infer<T>> {
-  const message = await claudeClient().messages.parse({
-    model: modelFor(ask.tier, spec),
+  const message = await claudeClient(config).messages.parse({
+    model: modelFrom(config, ask.tier),
     max_tokens: ask.maxTokens ?? 16000,
     system: ask.system,
     output_config: {
@@ -130,23 +133,18 @@ function assertUsable(message: Anthropic.Message): void {
 
 /* ------------------------------------------------- openai-compatible ------ */
 
-const openaiClients = new Map<string, OpenAI>();
-
-function openaiClient(spec: ProviderSpec): OpenAI {
-  const cached = openaiClients.get(spec.id);
-  if (cached) return cached;
-  const client = new OpenAI({
+function openaiClient(config: ProviderConfig): OpenAI {
+  return new OpenAI({
     // Ollama needs no key but the SDK insists on a non-empty string.
-    apiKey: spec.keyEnv ? (process.env[spec.keyEnv] ?? "") : "ollama",
-    baseURL: spec.baseUrl,
+    apiKey: config.apiKey ?? "local",
+    baseURL: config.spec.baseUrl,
   });
-  openaiClients.set(spec.id, client);
-  return client;
 }
 
-async function openaiText(spec: ProviderSpec, ask: Ask): Promise<string> {
-  const model = modelFor(ask.tier, spec);
-  const completion = await openaiClient(spec).chat.completions
+async function openaiText(config: ProviderConfig, ask: Ask): Promise<string> {
+  const spec = config.spec;
+  const model = modelFrom(config, ask.tier);
+  const completion = await openaiClient(config).chat.completions
     .create({
       model,
       max_tokens: ask.maxTokens ?? 4096,
@@ -169,10 +167,11 @@ async function openaiText(spec: ProviderSpec, ask: Ask): Promise<string> {
 }
 
 async function openaiJson<T extends z.ZodType>(
-  spec: ProviderSpec,
+  config: ProviderConfig,
   ask: Ask,
   schema: T,
 ): Promise<z.infer<T>> {
+  const spec = config.spec;
   const instruction =
     `${ask.system}\n\nReply with JSON only — no prose, no markdown fence. ` +
     `It must match this shape exactly:\n${describeShape(schema)}`;
@@ -187,11 +186,11 @@ async function openaiJson<T extends z.ZodType>(
 
     let raw: string;
     try {
-      raw = await openaiJsonCall(spec, ask, instruction, user);
+      raw = await openaiJsonCall(config, ask, instruction, user);
     } catch (error) {
       // Some providers 400 on response_format; retry without it before giving up.
       if (attempt === 0 && isResponseFormatError(error)) {
-        raw = await openaiJsonCall(spec, ask, instruction, user, false);
+        raw = await openaiJsonCall(config, ask, instruction, user, false);
       } else {
         throw error;
       }
@@ -212,14 +211,15 @@ async function openaiJson<T extends z.ZodType>(
 }
 
 async function openaiJsonCall(
-  spec: ProviderSpec,
+  config: ProviderConfig,
   ask: Ask,
   system: string,
   user: string,
   withFormat = true,
 ): Promise<string> {
-  const model = modelFor(ask.tier, spec);
-  const completion = await openaiClient(spec)
+  const spec = config.spec;
+  const model = modelFrom(config, ask.tier);
+  const completion = await openaiClient(config)
     .chat.completions.create({
       model,
       max_tokens: ask.maxTokens ?? 4096,
@@ -288,31 +288,40 @@ function describeShape(schema: z.ZodType): string {
 
 /* ---------------------------------------------------------------- errors --- */
 
-export function aiErrorMessage(error: unknown): string {
+/**
+ * `spec` names the provider in the message where it is known. The caller
+ * supplies it rather than this reading the active one, because reading the
+ * active provider now needs a database round trip and an error path should not
+ * depend on the database being reachable.
+ */
+export function aiErrorMessage(
+  error: unknown,
+  spec?: ProviderSpec,
+): string {
+  const who = spec?.label ?? "The provider";
+
   if (error instanceof AiNotConfigured) return error.message;
 
   if (error instanceof Anthropic.AuthenticationError)
-    return "Anthropic rejected the API key. Check ANTHROPIC_API_KEY.";
+    return "Anthropic rejected the API key. Check it under Settings.";
   if (error instanceof Anthropic.RateLimitError)
     return "Rate limited. Try again in a moment.";
   if (error instanceof Anthropic.BadRequestError) {
     if (/credit balance is too low/i.test(error.message))
-      return "Your Anthropic account is out of credit. Add some under Plans & Billing at console.anthropic.com, or switch AI_PROVIDER in .env.local.";
+      return "Your Anthropic account is out of credit. Add some at console.anthropic.com, or pick another provider under Settings.";
     return `Anthropic rejected the request: ${error.message}`;
   }
 
   if (error instanceof OpenAI.AuthenticationError)
-    return `${activeProvider().label} rejected the API key. Check ${activeProvider().keyEnv}.`;
+    return `${who} rejected the API key. Check it under Settings.`;
   if (error instanceof OpenAI.RateLimitError)
-    return `${activeProvider().label} rate limited the request, or the account is out of credit.`;
-  if (error instanceof OpenAI.APIConnectionError) {
-    const spec = activeProvider();
-    return spec.id === "ollama"
+    return `${who} rate limited the request, or the account is out of credit.`;
+  if (error instanceof OpenAI.APIConnectionError)
+    return spec?.id === "ollama"
       ? "Could not reach Ollama. Is `ollama serve` running?"
-      : `Could not reach ${spec.label}.`;
-  }
+      : `Could not reach ${who}.`;
   if (error instanceof OpenAI.APIError)
-    return `${activeProvider().label} error ${error.status}: ${error.message}`;
+    return `${who} error ${error.status}: ${error.message}`;
 
   if (error instanceof Anthropic.APIConnectionError)
     return "Could not reach Anthropic. Check your connection.";

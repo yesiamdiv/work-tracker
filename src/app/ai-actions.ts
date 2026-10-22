@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
 import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
-import { aiErrorMessage, askJson, askText } from "@/lib/ai";
+import { aiErrorMessage, askJson, askText, getAiConfig } from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
 import { getSession } from "@/lib/session";
 import { subjectFilterIds } from "@/lib/subjects";
@@ -25,7 +25,12 @@ async function guard<T>(run: () => Promise<T>): Promise<AiResult<T>> {
     await requireUser();
     return { ok: true, data: await run() };
   } catch (error) {
-    return { ok: false, error: aiErrorMessage(error) };
+    // Name the provider where we can, but never let that lookup mask the
+    // original failure.
+    const spec = await getAiConfig()
+      .then((c) => c.active.spec)
+      .catch(() => undefined);
+    return { ok: false, error: aiErrorMessage(error, spec) };
   }
 }
 

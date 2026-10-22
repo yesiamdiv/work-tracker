@@ -360,3 +360,24 @@ export type Event = typeof events.$inferSelect;
 export type Ref = typeof refs.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
+
+/* ------------------------------------------------------------- settings --- */
+
+/**
+ * A small key/value store for things configured in the app rather than the
+ * environment — which provider the assistant uses, which model, and the API
+ * keys themselves.
+ *
+ * Keys live here so a provider can be set up without a redeploy, and are
+ * encrypted before being written; see src/lib/secret.ts. Environment variables
+ * still work and act as the fallback, so nothing already configured breaks.
+ */
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type Setting = typeof settings.$inferSelect;

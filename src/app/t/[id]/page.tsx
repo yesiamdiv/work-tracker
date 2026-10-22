@@ -17,7 +17,7 @@ import {
 } from "@/components/ui";
 import { deleteTask, taskDeleteImpact } from "@/app/actions";
 import { summariseTask } from "@/app/ai-actions";
-import { providerReady } from "@/lib/ai";
+import { getAiConfig } from "@/lib/ai";
 import { taskDetail } from "@/db/queries";
 import { refLabel, refWord } from "@/lib/ref-display";
 import { byDay } from "@/lib/utils";
@@ -30,6 +30,8 @@ export default async function TaskPage({
   const { id } = await params;
   const detail = await taskDetail(id);
   if (!detail) notFound();
+
+  const aiReady = (await getAiConfig()).active.ready;
 
   const { task, subjects, events, taskRefs } = detail;
   const days = byDay(events, (e) => e.occurredAt);
@@ -126,7 +128,7 @@ export default async function TaskPage({
         )}
       </header>
 
-      {providerReady() && events.length >= 3 && (
+      {aiReady && events.length >= 3 && (
         <div className="mb-8">
           <AiSummary
             title="What has happened so far"
