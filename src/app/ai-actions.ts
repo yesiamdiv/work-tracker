@@ -1,12 +1,12 @@
 "use server";
 
-import { and, asc, eq, gte, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
-import { events, refs, subjects, taskSubjects, tasks } from "@/db/schema";
-import { feed, type FeedFilters } from "@/db/feed";
+import { events, refs, subjects, tasks } from "@/db/schema";
+import { asUuid, feed, type FeedEntry, type FeedFilters } from "@/db/feed";
 import { aiErrorMessage, askJson, askText, getAiConfig } from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
 import { getSession } from "@/lib/session";
@@ -42,88 +42,6 @@ export type SummaryScope =
   | { type: "subject"; id: string }
   | { type: "period"; days: number; label: string };
 
-/**
- * Renders the entries as plain text for the model.
- *
- * Deliberately verbose about dates, kinds and ticket keys: those are exactly
- * what a summary needs to cite, and the model cannot cite what it never saw.
- */
-async function gather(scope: SummaryScope) {
-  return withRetry("ai.gather", async () => {
-    const where = [];
-    let heading = "";
-
-    if (scope.type === "task") {
-      const [task] = await db
-        .select()
-        .from(tasks)
-        .where(eq(tasks.id, scope.id))
-        .limit(1);
-      if (!task) throw new Error("Task not found");
-      heading = `Task: ${task.title} (${task.type.replace(/_/g, " ")}, status ${task.status})`;
-      where.push(eq(events.taskId, scope.id));
-    } else if (scope.type === "subject") {
-      const [subject] = await db
-        .select()
-        .from(subjects)
-        .where(eq(subjects.id, scope.id))
-        .limit(1);
-      if (!subject) throw new Error("Subject not found");
-      heading = `Subject: ${subject.name} (${subject.kind.replace(/_/g, " ")})`;
-      const ids = await subjectFilterIds(scope.id);
-      const taskIds = await db
-        .selectDistinct({ id: taskSubjects.taskId })
-        .from(taskSubjects)
-        .where(inArray(taskSubjects.subjectId, ids));
-      if (!taskIds.length) return { heading, lines: [] as string[] };
-      where.push(
-        inArray(
-          events.taskId,
-          taskIds.map((t) => t.id),
-        ),
-      );
-    } else {
-      heading = `Everything logged in the ${scope.label}`;
-      where.push(
-        gte(events.occurredAt, new Date(Date.now() - scope.days * 86_400_000)),
-      );
-    }
-
-    const rows = await db
-      .select({
-        body: events.body,
-        kind: events.kind,
-        outcome: events.outcome,
-        occurredAt: events.occurredAt,
-        taskTitle: tasks.title,
-      })
-      .from(events)
-      .innerJoin(tasks, eq(tasks.id, events.taskId))
-      .where(and(...where))
-      .orderBy(asc(events.occurredAt))
-      .limit(400);
-
-    const keys = await db
-      .selectDistinct({ key: refs.externalKey, url: refs.url })
-      .from(refs)
-      .limit(100);
-
-    const lines = rows.map((r) => {
-      const date = r.occurredAt.toISOString().slice(0, 10);
-      const outcome = r.outcome ? `/${r.outcome}` : "";
-      const task = scope.type === "task" ? "" : ` [${r.taskTitle}]`;
-      return `${date} (${KIND_LABEL[r.kind]}${outcome})${task}: ${r.body}`;
-    });
-
-    const tickets = keys.map((k) => k.key).filter(Boolean);
-    if (tickets.length) {
-      lines.push(`\nTicket keys referenced: ${tickets.join(", ")}`);
-    }
-
-    return { heading, lines };
-  });
-}
-
 const SUMMARY_SYSTEM = `You summarise a QA engineer's own log of their work, for them to re-read later.
 
 Rules:
@@ -135,17 +53,17 @@ Rules:
 - If there is nothing of substance, say so in one line.`;
 
 export async function summarise(scope: SummaryScope): Promise<AiResult<string>> {
-  return guard(async () => {
-    const { heading, lines } = await gather(scope);
-    if (!lines.length) return "Nothing logged for this yet.";
+  // Every scope is expressible as a filter, so summaries and questions share
+  // one gathering path — and the per-entry metadata with it.
+  const filters: AskFilters =
+    scope.type === "task"
+      ? { task: scope.id }
+      : scope.type === "subject"
+        ? { subject: scope.id }
+        : { days: String(scope.days) };
 
-    return askText({
-      system: SUMMARY_SYSTEM,
-      user: `${heading}\n\nEntries, oldest first:\n\n${lines.join("\n")}`,
-      tier: "standard",
-      effort: "medium",
-    });
-  });
+  const result = await askAboutEntries({ filters });
+  return result.ok ? { ok: true, data: result.data.answer } : result;
 }
 
 /** Caches a task's summary on the row, so re-reading it costs nothing. */
@@ -375,15 +293,21 @@ export type AskFilters = {
  * Capped by characters rather than entry count, because one real entry here is
  * 13,000 characters: fifty of those would blow any context window while fifty
  * one-liners would barely fill a page.
+ *
+ * 180,000 characters is roughly 45,000 tokens, which fits the smallest context
+ * among the providers offered (DeepSeek at 64k) with room to spare, and is a
+ * fraction of what Gemini or Claude allow. The first cap was 60,000, which the
+ * log reached within three weeks of use — generous here costs nothing, since
+ * the bill is driven by what is actually sent, not by the ceiling.
  */
-const MAX_CHARS = 60_000;
+const MAX_CHARS = 180_000;
 
 function toFeedFilters(f: AskFilters): FeedFilters {
   const days = Number(f.days ?? 0) || 0;
   return {
     q: f.q,
-    subjectId: f.subject || undefined,
-    taskId: f.task || undefined,
+    subjectId: asUuid(f.subject),
+    taskId: asUuid(f.task),
     kind: events.kind.enumValues.includes(f.kind as never)
       ? (f.kind as FeedFilters["kind"])
       : undefined,
@@ -400,19 +324,21 @@ function toFeedFilters(f: AskFilters): FeedFilters {
 async function describeFilters(f: AskFilters): Promise<string> {
   const parts: string[] = [];
   if (f.q) parts.push(`matching "${f.q}"`);
-  if (f.subject) {
+  const subjectId = asUuid(f.subject);
+  if (subjectId) {
     const [s] = await db
       .select({ name: subjects.name })
       .from(subjects)
-      .where(eq(subjects.id, f.subject))
+      .where(eq(subjects.id, subjectId))
       .limit(1);
     if (s) parts.push(`about ${s.name} (including its parts)`);
   }
-  if (f.task) {
+  const taskId = asUuid(f.task);
+  if (taskId) {
     const [t] = await db
       .select({ title: tasks.title })
       .from(tasks)
-      .where(eq(tasks.id, f.task))
+      .where(eq(tasks.id, taskId))
       .limit(1);
     if (t) parts.push(`on the task "${t.title}"`);
   }
@@ -421,6 +347,42 @@ async function describeFilters(f: AskFilters): Promise<string> {
   if (f.refs === "1") parts.push("that carry a link");
   if (f.days) parts.push(`from the last ${f.days} days`);
   return parts.length ? `Entries ${parts.join(", ")}` : "All entries";
+}
+
+/**
+ * One entry, as the model sees it.
+ *
+ * Carries the metadata, not just the prose: the date, which task and subject
+ * it belongs to, the kind and outcome, the ticket keys pulled out of its links,
+ * and the names of any files. Sending the body alone meant a question like
+ * "which tickets did I raise" had only whatever happened to be typed in the
+ * text, and the model had no idea subjects existed at all.
+ */
+function formatEntry(e: FeedEntry): string {
+  const when = e.occurredAt.toISOString().slice(0, 16).replace("T", " ");
+  const head = [
+    when,
+    `kind: ${KIND_LABEL[e.kind]}`,
+    e.outcome ? `outcome: ${e.outcome}` : null,
+    `task: ${e.taskTitle}`,
+    e.subjects.length
+      ? `subject: ${e.subjects
+          .map((s) => (s.parentName ? `${s.parentName} / ${s.name}` : s.name))
+          .join(", ")}`
+      : null,
+    e.refs.length
+      ? `links: ${e.refs
+          .map((r) => r.externalKey ?? r.label ?? `${r.kind} ${r.url}`)
+          .join(", ")}`
+      : null,
+    e.attachments.length
+      ? `files: ${e.attachments.map((a) => a.name).join(", ")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return `${head}\n${e.body}`;
 }
 
 async function gatherFiltered(f: AskFilters) {
@@ -435,9 +397,7 @@ async function gatherFiltered(f: AskFilters) {
   let dropped = 0;
 
   for (const e of ordered) {
-    const date = e.occurredAt.toISOString().slice(0, 16).replace("T", " ");
-    const outcome = e.outcome ? `/${e.outcome}` : "";
-    const line = `${date} (${KIND_LABEL[e.kind]}${outcome}) [${e.taskTitle}]: ${e.body}`;
+    const line = formatEntry(e);
     if (chars + line.length > MAX_CHARS) {
       dropped++;
       continue;

@@ -12,6 +12,18 @@ import {
 } from "@/db/schema";
 import { subjectFilterIds } from "@/lib/subjects";
 
+/**
+ * Ids arrive from the URL, where anything can be typed. Postgres rejects a
+ * malformed uuid with an error rather than an empty result, so a hand-edited
+ * link or a bookmark to a deleted subject would 500 the page — treat anything
+ * that is not uuid-shaped as no filter at all.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function asUuid(value: string | undefined | null): string | undefined {
+  return value && UUID.test(value) ? value : undefined;
+}
+
 export type FeedFilters = {
   /** Free text over the entry body. */
   q?: string;
@@ -38,6 +50,13 @@ export type FeedEntry = {
   occurredAt: Date;
   refCount: number;
   subjects: { name: string; slug: string; colour: string; parentName: string | null }[];
+  /** The links found in this entry, so a question can be answered about them. */
+  refs: {
+    kind: string;
+    externalKey: string | null;
+    label: string | null;
+    url: string;
+  }[];
   /** Files on this entry, so the feed can show them without opening the task. */
   attachments: {
     id: string;
@@ -137,12 +156,31 @@ export async function feed(filters: FeedFilters = {}) {
  * whole page rather than two per row.
  */
 async function hydrate(
-  rows: Omit<FeedEntry, "subjects" | "attachments">[],
+  rows: Omit<FeedEntry, "subjects" | "attachments" | "refs">[],
 ): Promise<FeedEntry[]> {
   if (!rows.length) return [];
 
   const taskIds = [...new Set(rows.map((r) => r.taskId))];
   const eventIds = rows.map((r) => r.id);
+
+  const entryLinks = await db
+    .select({
+      eventId: refs.eventId,
+      kind: refs.kind,
+      externalKey: refs.externalKey,
+      label: refs.label,
+      url: refs.url,
+    })
+    .from(refs)
+    .where(inArray(refs.eventId, eventIds));
+
+  const refsByEvent = new Map<string, FeedEntry["refs"]>();
+  for (const l of entryLinks) {
+    if (!l.eventId) continue;
+    const list = refsByEvent.get(l.eventId) ?? [];
+    list.push(l);
+    refsByEvent.set(l.eventId, list);
+  }
 
   const files = await db
     .select({
@@ -189,6 +227,7 @@ async function hydrate(
     ...r,
     subjects: byTask.get(r.taskId) ?? [],
     attachments: byEvent.get(r.id) ?? [],
+    refs: refsByEvent.get(r.id) ?? [],
   }));
 }
 

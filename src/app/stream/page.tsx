@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FeedList } from "@/components/feed-list";
 import { StreamFilters } from "@/components/stream-filters";
 import { Meta, PageTitle } from "@/components/ui";
-import { feed, subjectOptions, type FeedFilters } from "@/db/feed";
+import { asUuid, feed, subjectOptions, type FeedFilters } from "@/db/feed";
 import { events } from "@/db/schema";
 
 const PAGE = 50;
@@ -42,8 +42,8 @@ export default async function StreamPage({
 
   const filters: FeedFilters = {
     q: sp.q,
-    subjectId: sp.subject || undefined,
-    taskId: sp.task || undefined,
+    subjectId: asUuid(sp.subject),
+    taskId: asUuid(sp.task),
     kind: asKind(sp.kind),
     outcome: asOutcome(sp.outcome),
     withRefs: sp.refs === "1",
