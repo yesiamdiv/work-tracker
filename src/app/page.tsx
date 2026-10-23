@@ -103,13 +103,16 @@ export default async function Dashboard({
           </SectionLabel>
 
           {selected && (
-            <p className="-mt-1 mb-3">
+            <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
               <Link
                 href={`/t/${selected.id}`}
-                className="extlink text-[13px] text-muted hover:text-text"
+                className="extlink text-[13px] text-text hover:opacity-80"
               >
-                Open this task in full
+                Open this task&rsquo;s own page ↗
               </Link>
+              <Meta>
+                where you can edit it, see its references, and attach files
+              </Meta>
             </p>
           )}
 

@@ -40,7 +40,7 @@ export default async function AskPage({
   const [subjects, matched, history] = await Promise.all([
     subjectOptions(),
     ready ? countFiltered(filters) : Promise.resolve(0),
-    savedAnswers(),
+    savedAnswers(5),
   ]);
 
   const filtered = Object.entries(filters).some(
@@ -125,8 +125,18 @@ export default async function AskPage({
             <AskPanel filters={filters} matched={matched} filtered={filtered} />
           </div>
 
-          <SectionLabel hint="Every question and summary is kept, with the filters and model behind it.">
-            Asked before
+          <SectionLabel
+            hint="Every question and summary is kept, with the filters and model behind it."
+            right={
+              <Link
+                href="/answers"
+                className="extlink text-[13px] text-muted hover:text-text"
+              >
+                See all answers
+              </Link>
+            }
+          >
+            Asked recently
           </SectionLabel>
           <div className="mb-10">
             <AnswerHistory items={history} />

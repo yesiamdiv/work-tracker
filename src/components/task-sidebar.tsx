@@ -97,16 +97,31 @@ export function TaskSidebar({
                   selected ? "border-line-strong bg-raised" : "border-transparent",
                 )}
               >
-                <Link
-                  href={selected ? "/" : `/?task=${t.id}`}
-                  aria-current={selected ? "true" : undefined}
-                  className={cn(
-                    "block text-[14px] leading-snug after:absolute after:inset-0 after:content-['']",
-                    selected ? "text-text" : "text-body",
-                  )}
-                >
-                  {t.title}
-                </Link>
+                <span className="flex items-start gap-2">
+                  <Link
+                    href={selected ? "/" : `/?task=${t.id}`}
+                    aria-current={selected ? "true" : undefined}
+                    className={cn(
+                      "block min-w-0 flex-1 text-[14px] leading-snug after:absolute after:inset-0 after:content-['']",
+                      selected ? "text-text" : "text-body",
+                    )}
+                  >
+                    {t.title}
+                  </Link>
+
+                  {/*
+                    Opens the task's own page, rather than filtering the feed.
+                    Above the stretched link, which otherwise swallows the click.
+                  */}
+                  <Link
+                    href={`/t/${t.id}`}
+                    title="Open this task's own page"
+                    aria-label={`Open ${t.title}`}
+                    className="relative z-10 shrink-0 rounded-xs px-1 text-[13px] text-faint transition-colors hover:bg-raised hover:text-text"
+                  >
+                    ↗
+                  </Link>
+                </span>
 
                 <span className="relative z-10 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                   <SubjectLinks

@@ -8,6 +8,7 @@ const links = [
   { href: "/stream", label: "Stream" },
   { href: "/subjects", label: "Subjects" },
   { href: "/ask", label: "Assistant" },
+  { href: "/answers", label: "Answers" },
   { href: "/settings", label: "Settings" },
 ];
 
