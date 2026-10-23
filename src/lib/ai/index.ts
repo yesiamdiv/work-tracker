@@ -26,6 +26,17 @@ export class AiNotConfigured extends Error {
 
 /* ------------------------------------------------------------- the seam --- */
 
+/**
+ * How long to wait for a model before giving up.
+ *
+ * Vercel kills the function at sixty seconds, and a request that simply hangs
+ * until then surfaces as FUNCTION_INVOCATION_TIMEOUT with no indication of
+ * what went wrong. Free OpenRouter models in particular can sit in a shared
+ * queue for minutes. Failing first, just under that ceiling, means the person
+ * is told what happened and what to do about it.
+ */
+const DEFAULT_TIMEOUT_MS = 50_000;
+
 export type Ask = {
   system: string;
   user: string;
@@ -33,6 +44,8 @@ export type Ask = {
   /** Thoroughness. Maps to effort on Claude; ignored elsewhere. */
   effort?: "low" | "medium" | "high";
   maxTokens?: number;
+  /** Override the wait — a connection test wants to fail much sooner. */
+  timeoutMs?: number;
 };
 
 export type Answer = {
@@ -102,13 +115,16 @@ function claudeExtras(ask: Ask) {
 }
 
 async function claudeText(config: ProviderConfig, ask: Ask): Promise<Answer> {
-  const message = await claudeClient(config).messages.create({
-    model: modelFrom(config, ask.tier),
-    max_tokens: ask.maxTokens ?? config.spec.limits.maxOutput,
-    system: ask.system,
-    ...claudeExtras(ask),
-    messages: [{ role: "user", content: ask.user }],
-  });
+  const message = await claudeClient(config).messages.create(
+    {
+      model: modelFrom(config, ask.tier),
+      max_tokens: ask.maxTokens ?? config.spec.limits.maxOutput,
+      system: ask.system,
+      ...claudeExtras(ask),
+      messages: [{ role: "user", content: ask.user }],
+    },
+    { timeout: ask.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+  );
 
   assertUsable(message);
   const text = message.content
@@ -168,21 +184,53 @@ async function openaiText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const spec = config.spec;
   const model = modelFrom(config, ask.tier);
   const completion = await openaiClient(config).chat.completions
-    .create({
-      model,
-      max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
-      messages: [
-        { role: "system", content: ask.system },
-        { role: "user", content: ask.user },
-      ],
-    })
+    .create(
+      {
+        model,
+        max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
+        messages: [
+          { role: "system", content: ask.system },
+          { role: "user", content: ask.user },
+        ],
+      },
+      { timeout: ask.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+    )
     .catch((error: unknown) => {
       throw missingModel(spec, model, error);
     });
 
   const choice = completion.choices[0];
   const text = choice?.message?.content?.trim();
-  if (!text) throw new Error(`${spec.label} returned an empty response.`);
+
+  if (!text) {
+    /*
+     * Reasoning models return their thinking in a non-standard `reasoning`
+     * field and leave `content` null. One that runs out of output budget mid-
+     * thought therefore answers with nothing at all — which looked like an
+     * empty response and gave no hint that the model was the problem.
+     */
+    const reasoning = (
+      choice?.message as { reasoning?: string } | undefined
+    )?.reasoning;
+
+    if (reasoning && choice?.finish_reason === "length") {
+      throw new Error(
+        `${spec.label} ran "${model}" out of output budget while it was still thinking, so it never began the answer. That model reasons before replying — pick one that does not, or raise its output limit.`,
+      );
+    }
+    if (reasoning) {
+      throw new Error(
+        `"${model}" returned only its internal reasoning and no answer. Try a different model under Settings.`,
+      );
+    }
+    if (choice?.finish_reason === "length") {
+      throw new Error(
+        `${spec.label} stopped at its output limit before writing anything. Ask for something shorter.`,
+      );
+    }
+    throw new Error(`${spec.label} returned an empty response.`);
+  }
+
   return { text, truncated: choice?.finish_reason === "length" };
 }
 
@@ -240,17 +288,20 @@ async function openaiJsonCall(
   const spec = config.spec;
   const model = modelFrom(config, ask.tier);
   const completion = await openaiClient(config)
-    .chat.completions.create({
-      model,
-      max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
-      ...(withFormat
-        ? { response_format: { type: "json_object" as const } }
-        : {}),
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    })
+    .chat.completions.create(
+      {
+        model,
+        max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
+        ...(withFormat
+          ? { response_format: { type: "json_object" as const } }
+          : {}),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      },
+      { timeout: ask.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+    )
     .catch((error: unknown) => {
       throw missingModel(spec, model, error);
     });
@@ -336,6 +387,8 @@ export function aiErrorMessage(
     return `${who} rejected the API key. Check it under Settings.`;
   if (error instanceof OpenAI.RateLimitError)
     return `${who} rate limited the request, or the account is out of credit.`;
+  if (error instanceof OpenAI.APIConnectionTimeoutError)
+    return `${who} did not answer in time. Free models often queue for minutes — try a faster one under Settings, or narrow the selection.`;
   if (error instanceof OpenAI.APIConnectionError)
     return spec?.id === "ollama"
       ? "Could not reach Ollama. Is `ollama serve` running?"
@@ -343,6 +396,8 @@ export function aiErrorMessage(
   if (error instanceof OpenAI.APIError)
     return `${who} error ${error.status}: ${error.message}`;
 
+  if (error instanceof Anthropic.APIConnectionTimeoutError)
+    return "Claude did not answer in time. Try a narrower selection.";
   if (error instanceof Anthropic.APIConnectionError)
     return "Could not reach Anthropic. Check your connection.";
   if (error instanceof Anthropic.APIError)

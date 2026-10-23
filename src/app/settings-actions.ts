@@ -121,15 +121,33 @@ export async function testProvider(provider: string): Promise<ActionResult> {
     const restore = before.activeId;
     await setActiveProvider(id);
     try {
+      const started = Date.now();
       const reply = await askText({
         system: "Reply with exactly: ok",
         user: "Reply with exactly: ok",
         tier: "cheap",
-        maxTokens: 20,
+        /*
+         * Not 20. A reasoning model spends its budget thinking before it
+         * writes anything, so a tiny ceiling makes a working model report
+         * failure. 2,000 is enough for one to think and still answer "ok".
+         */
+        maxTokens: 2_000,
+        /*
+         * Fail fast. This is a two-word prompt: a model that cannot answer it
+         * inside twenty seconds will never answer a real question inside the
+         * sixty the serverless function gets, so saying so here is kinder than
+         * letting it look configured and time out later.
+         */
+        timeoutMs: 20_000,
       });
+      const took = ((Date.now() - started) / 1000).toFixed(1);
       return {
         ok: true,
-        message: `${target.spec.label} answered with "${reply.slice(0, 40)}" using ${modelFrom(target, "cheap")}.`,
+        message: `${target.spec.label} answered in ${took}s with "${reply.slice(0, 32)}" using ${modelFrom(target, "cheap")}.${
+          Number(took) > 8
+            ? " That is slow for two words — a real question may well time out."
+            : ""
+        }`,
       };
     } finally {
       if (restore !== id) await setActiveProvider(restore);
