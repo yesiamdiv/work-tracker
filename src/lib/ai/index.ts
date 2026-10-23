@@ -172,6 +172,28 @@ function assertUsable(message: Anthropic.Message): void {
 
 /* ------------------------------------------------- openai-compatible ------ */
 
+/**
+ * OpenRouter's control over how much a model thinks before answering.
+ *
+ * Some models there reason by default and cannot be stopped — "Reasoning is
+ * mandatory for this endpoint" — and left alone one spent 27,785 characters
+ * thinking, used its entire 8,000-token budget, and returned no answer at all
+ * after 59.9 seconds. Vercel kills the function at sixty.
+ *
+ * `effort: "low"` bounds the thinking and `exclude: true` keeps it out of the
+ * response. The same question then answered in 35.5 seconds, using 4,731
+ * tokens, with 1,719 characters of actual answer.
+ *
+ * Only OpenRouter accepts this, and not every model there does — a model that
+ * rejects it gets the request retried without it.
+ */
+const REASONING = { effort: "low", exclude: true } as const;
+
+function rejectsReasoning(error: unknown): boolean {
+  if (!(error instanceof OpenAI.BadRequestError)) return false;
+  return /reasoning|unsupported parameter|unrecognized/i.test(error.message);
+}
+
 function openaiClient(config: ProviderConfig): OpenAI {
   return new OpenAI({
     // Ollama needs no key but the SDK insists on a non-empty string.
@@ -183,21 +205,29 @@ function openaiClient(config: ProviderConfig): OpenAI {
 async function openaiText(config: ProviderConfig, ask: Ask): Promise<Answer> {
   const spec = config.spec;
   const model = modelFrom(config, ask.tier);
-  const completion = await openaiClient(config).chat.completions
-    .create(
+
+  const send = (withReasoning: boolean) =>
+    openaiClient(config).chat.completions.create(
       {
         model,
         max_tokens: ask.maxTokens ?? spec.limits.maxOutput,
+        ...(withReasoning && spec.reasoningControl
+          ? ({ reasoning: REASONING } as Record<string, unknown>)
+          : {}),
         messages: [
           { role: "system", content: ask.system },
           { role: "user", content: ask.user },
         ],
       },
       { timeout: ask.timeoutMs ?? DEFAULT_TIMEOUT_MS },
-    )
-    .catch((error: unknown) => {
-      throw missingModel(spec, model, error);
-    });
+    );
+
+  const completion = await send(true).catch(async (error: unknown) => {
+    if (spec.reasoningControl && rejectsReasoning(error)) {
+      return send(false);
+    }
+    throw missingModel(spec, model, error);
+  });
 
   const choice = completion.choices[0];
   const text = choice?.message?.content?.trim();

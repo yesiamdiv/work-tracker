@@ -492,7 +492,13 @@ export async function askAboutEntries(input: {
       entriesRead: used,
       truncated: truncated ? 1 : 0,
     });
-    revalidatePath("/ask");
+    // The answer is already saved; a cache refresh failing must not lose it.
+    try {
+      revalidatePath("/ask");
+      revalidatePath("/answers");
+    } catch {
+      // Not fatal — the next navigation picks it up.
+    }
 
     return { answer: text, used, dropped, truncated };
   });

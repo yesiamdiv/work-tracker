@@ -47,6 +47,14 @@ export type ProviderSpec = {
    * already some twelve thousand words of answer.
    */
   limits: { inputChars: number; maxOutput: number };
+  /**
+   * Send OpenRouter's `reasoning` control with each request, bounding how much
+   * a model thinks before it answers.
+   *
+   * Only OpenRouter accepts it — OpenAI and the rest reject unknown parameters
+   * with a 400 — so it must not be sent elsewhere.
+   */
+  reasoningControl?: boolean;
   notes?: string;
 };
 
@@ -108,6 +116,7 @@ export const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     id: "openrouter",
     // Varies by model, so deliberately conservative.
     limits: { inputChars: 180_000, maxOutput: 8_000 },
+    reasoningControl: true,
     label: "OpenRouter",
     kind: "openai",
     keyEnv: "OPENROUTER_API_KEY",
