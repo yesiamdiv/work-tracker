@@ -200,6 +200,31 @@ Hard rules: AI never writes to the DB without confirmation; every generated
 claim cites its source events; embeddings are generated in a background job so
 saving an event is never slow.
 
+### Do not point this at a reasoning model
+
+Measured against a real selection — the 64 entries of the Acaas migration, 69k
+characters, 17,854 prompt tokens — on `recursive/flint-v1.0:free`:
+
+| | |
+|---|---|
+| time to first token | 852ms and 1,481ms |
+| generation time | 49.8s both times, i.e. our timeout |
+| completion tokens | 5,743 and 5,872 |
+| **of which reasoning** | **5,743 and 5,872 — all of them** |
+
+Not one token of answer, twice. The model is not slow to reach and the free
+tier was not the obstacle: it simply spends the whole output budget thinking,
+and thinking shares that budget with the reply.
+
+`reasoning: { effort: "low", exclude: true }` does not prevent this. `exclude`
+only keeps the thinking out of the response — it is still generated and still
+billed against `max_tokens` — and `effort: "low"` was ignored by this model.
+The parameter did fix a smaller prompt, which is why it looked sufficient.
+
+So the selection size sets the requirement: at anything like this scale the
+model must begin writing immediately. Gemini Flash, Claude Haiku and DeepSeek
+chat do; a reasoning model cannot be made to.
+
 ## 5. Build order
 
 - [x] **0** — Config, schema, plan

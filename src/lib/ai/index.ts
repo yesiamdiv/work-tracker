@@ -439,7 +439,7 @@ export function aiErrorMessage(error: unknown, spec?: ProviderSpec): string {
       ? `${who} returned 429. On a ":free" model that usually means the model's shared capacity is busy rather than anything being wrong with your account — pick another model under Settings, or use a paid one. It can also be the free tier's daily request cap.`
       : `${who} rate limited the request, or the account is out of credit.`;
   if (error instanceof OpenAI.APIConnectionTimeoutError)
-    return `${who} did not answer in time. Free models often queue for minutes — try a faster one under Settings, or narrow the selection.`;
+    return `${who} did not finish in time. Most often the model is a reasoning one, spending its whole output budget thinking before it writes anything — measured at 5,800 thinking tokens and no answer on a 64-entry selection. Pick a model that does not reason, under Settings, or narrow the selection.`;
   if (error instanceof OpenAI.APIConnectionError)
     return spec?.id === "ollama"
       ? "Could not reach Ollama. Is `ollama serve` running?"
