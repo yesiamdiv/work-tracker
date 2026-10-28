@@ -14,6 +14,31 @@ import { NextResponse, type NextRequest } from "next/server";
 const authDisabled =
   process.env.NODE_ENV !== "production" && !process.env.AUTH_GOOGLE_ID;
 
+/**
+ * The one origin the app answers on, from AUTH_URL.
+ *
+ * Vercel serves this project on three aliases, but the OAuth redirect_uri is
+ * fixed to AUTH_URL. A sign-in begun on any other alias therefore sets its
+ * PKCE cookie on that host and then hands the callback to this one, where the
+ * cookie does not exist — which Auth.js reports as `InvalidCheck:
+ * pkceCodeVerifier value could not be parsed` and the person sees as "There is
+ * a problem with the server configuration". It never recovers on its own,
+ * because retrying from the same bookmark reproduces it exactly.
+ *
+ * Funnelling every page request to the canonical origin makes the mismatch
+ * impossible rather than something to remember, and keeps Google's console to
+ * a single registered redirect URI.
+ */
+const canonical = (() => {
+  const raw = process.env.AUTH_URL?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+})();
+
 const COOKIES = [
   "authjs.session-token",
   "__Secure-authjs.session-token",
@@ -23,6 +48,22 @@ const COOKIES = [
 
 export async function middleware(req: NextRequest) {
   if (authDisabled) return NextResponse.next();
+
+  /*
+   * GET only. A redirect would drop a POST body, and a form posted from the
+   * wrong host carries a CSRF cookie that would not validate here in any case.
+   * Arriving at a page is a GET, which is how a stale bookmark gets here.
+   */
+  if (canonical && req.method === "GET") {
+    const host = req.headers.get("host");
+    if (host && host !== canonical.host) {
+      const to = new URL(
+        req.nextUrl.pathname + req.nextUrl.search,
+        canonical.origin,
+      );
+      return NextResponse.redirect(to, 307);
+    }
+  }
 
   const { pathname } = req.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/api/auth")) {
