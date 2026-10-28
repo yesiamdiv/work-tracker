@@ -7,7 +7,12 @@ import { TaskSidebar } from "@/components/task-sidebar";
 import { Empty, Meta, SectionLabel } from "@/components/ui";
 import { feed } from "@/db/feed";
 import { closedTasks, openTasks } from "@/db/queries";
-import { activityByDay, dashboardStats, staleTasks, STALE_DAYS } from "@/db/stats";
+import {
+  activityByDay,
+  dashboardStats,
+  staleTasks,
+  STALE_DAYS,
+} from "@/db/stats";
 import { ago } from "@/lib/utils";
 
 export default async function Dashboard({
@@ -37,7 +42,10 @@ export default async function Dashboard({
           <SectionLabel
             hint={`Open tasks with no entries for ${STALE_DAYS} days or more, longest-quiet first.`}
             right={
-              <Link href="/" className="extlink text-[13px] text-muted hover:text-text">
+              <Link
+                href="/"
+                className="extlink text-[13px] text-muted hover:text-text"
+              >
                 Close
               </Link>
             }
@@ -68,9 +76,28 @@ export default async function Dashboard({
         </section>
       )}
 
-      {/* Sidebar beside the log on desktop; stacked on a phone, capture first. */}
-      <div className="flex flex-col gap-9 lg:flex-row lg:gap-10">
-        <aside className="order-2 lg:order-1 lg:w-64 lg:shrink-0">
+      {/*
+        A column of tasks beside the log on desktop. On a phone there is no
+        room beside anything, so the three parts stack — and the order matters
+        more than it looks: the task list used to come last, below a whole
+        screen of entries, which made changing task a scroll to the bottom and
+        back. Capture stays first so a thought can be typed the moment the page
+        opens; the tasks come next, where switching is one thumb away; the log
+        follows, because reading it is what you do after choosing.
+
+        A grid rather than flex ordering: capture and log share the right-hand
+        column on desktop while the tasks span both rows, which flex can only
+        express by nesting them — and nesting is what put the list last.
+      */}
+      <div className="grid grid-cols-1 gap-x-10 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+          <CaptureBox
+            targets={tasks.map((t) => ({ id: t.id, title: t.title }))}
+            defaultTargetId={selectedTask ?? tasks[0]?.id}
+          />
+        </div>
+
+        <aside className="mb-9 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:mb-0">
           <TaskSidebar
             tasks={tasks}
             closed={finished}
@@ -78,12 +105,7 @@ export default async function Dashboard({
           />
         </aside>
 
-        <div className="order-1 min-w-0 flex-1 lg:order-2">
-          <CaptureBox
-            targets={tasks.map((t) => ({ id: t.id, title: t.title }))}
-            defaultTargetId={selectedTask ?? tasks[0]?.id}
-          />
-
+        <div className="min-w-0 lg:col-start-2 lg:row-start-2">
           <SectionLabel
             hint={
               selected

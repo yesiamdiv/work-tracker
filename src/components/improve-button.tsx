@@ -52,7 +52,7 @@ export function ImproveButton({
       {suggestion && (
         <div className="mt-3 w-full rounded-xs border border-line p-3.5">
           <Meta className="mb-1.5 block text-muted">Suggested rewrite</Meta>
-          <p className="whitespace-pre-wrap text-body">{suggestion}</p>
+          <p className="whitespace-pre-wrap break-words text-body">{suggestion}</p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <button
               type="button"

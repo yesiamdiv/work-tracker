@@ -20,6 +20,16 @@ type Task = {
   subjects: SubjectChip[];
 };
 
+/**
+ * How many tasks a phone shows before asking.
+ *
+ * The list is ordered by what was touched last, so the task being worked on is
+ * all but always in the first few — while all nine of them, at up to three
+ * lines a title, come to more than a screen and would push the log out of
+ * sight. Desktop has a column to itself and shows the lot.
+ */
+const PHONE_ROWS = 5;
+
 function isStale(at: Date | string) {
   const ms = Date.now() - new Date(at).getTime();
   return ms > STALE_DAYS * 86_400_000;
@@ -41,6 +51,8 @@ export function TaskSidebar({
   selectedId?: string;
 }) {
   const [showClosed, setShowClosed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const overflowing = tasks.length > PHONE_ROWS;
 
   return (
     <nav aria-label="Your tasks">
@@ -80,11 +92,17 @@ export function TaskSidebar({
       )}
 
       <ul className="space-y-1">
-        {tasks.map((t) => {
+        {tasks.map((t, i) => {
           const selected = t.id === selectedId;
           const stale = isStale(t.lastActivityAt);
+          /*
+           * Hidden on a phone only, and never the selected one — it can sit
+           * anywhere in the order, and a filter you cannot see is a filter you
+           * cannot undo.
+           */
+          const folded = !showAll && i >= PHONE_ROWS && !selected;
           return (
-            <li key={t.id}>
+            <li key={t.id} className={cn(folded && "hidden lg:list-item")}>
               {/*
                 The row filters the dashboard to this task, but the subject
                 chips are their own links — so the row uses a stretched link
@@ -94,7 +112,9 @@ export function TaskSidebar({
               <div
                 className={cn(
                   "rowlink relative block rounded-xs border px-3 py-2.5",
-                  selected ? "border-line-strong bg-raised" : "border-transparent",
+                  selected
+                    ? "border-line-strong bg-raised"
+                    : "border-transparent",
                 )}
               >
                 <span className="flex items-start gap-2">
@@ -124,16 +144,15 @@ export function TaskSidebar({
                 </span>
 
                 <span className="relative z-10 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <SubjectLinks
-                    subjects={t.subjects}
-                    taskId={t.id}
-                    limit={2}
-                  />
+                  <SubjectLinks subjects={t.subjects} taskId={t.id} limit={2} />
 
                   <Meta>· {t.eventCount}</Meta>
                   {/* Stale is stated in words — a dim dot would read as decoration. */}
                   <Meta className={stale ? "text-muted" : undefined}>
-                    · {stale ? `quiet ${ago(t.lastActivityAt)}` : ago(t.lastActivityAt)}
+                    ·{" "}
+                    {stale
+                      ? `quiet ${ago(t.lastActivityAt)}`
+                      : ago(t.lastActivityAt)}
                   </Meta>
                 </span>
               </div>
@@ -141,6 +160,17 @@ export function TaskSidebar({
           );
         })}
       </ul>
+
+      {overflowing && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          className="mt-2 text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text lg:hidden"
+        >
+          {showAll ? "Show fewer" : `Show all ${tasks.length}`}
+        </button>
+      )}
 
       {closed.length > 0 && (
         <div className="mt-3 border-t border-line pt-3">
@@ -150,9 +180,7 @@ export function TaskSidebar({
             aria-expanded={showClosed}
             className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text"
           >
-            {showClosed
-              ? "Hide finished"
-              : `Show ${closed.length} finished`}
+            {showClosed ? "Hide finished" : `Show ${closed.length} finished`}
           </button>
 
           {showClosed && (

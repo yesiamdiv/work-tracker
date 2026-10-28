@@ -191,7 +191,7 @@ export function AskPanel({
 
       {answer && (
         <div className="mt-4 border-t border-line pt-3.5">
-          <p className="whitespace-pre-wrap text-body">{answer}</p>
+          <p className="whitespace-pre-wrap break-words text-body">{answer}</p>
           {note && <Meta className="mt-3 block">{note}</Meta>}
         </div>
       )}

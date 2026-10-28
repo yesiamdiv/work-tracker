@@ -58,7 +58,7 @@ export function AiSummary({
 
       {text ? (
         <>
-          <div className="mt-1 space-y-1.5 whitespace-pre-wrap text-body">
+          <div className="mt-1 space-y-1.5 whitespace-pre-wrap break-words text-body">
             {text}
           </div>
           <Meta className="mt-3 block">

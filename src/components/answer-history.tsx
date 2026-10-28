@@ -81,7 +81,7 @@ export function AnswerHistory({ items }: { items: Answer[] }) {
 
             <div className="mt-2.5 border-t border-line pt-2.5">
               <Clamp maxHeight={150} moreLabel="Show the whole answer">
-                <p className="whitespace-pre-wrap text-body">{a.answer}</p>
+                <p className="whitespace-pre-wrap break-words text-body">{a.answer}</p>
               </Clamp>
             </div>
           </article>
