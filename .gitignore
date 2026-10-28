@@ -17,3 +17,5 @@ next-env.d.ts
 probe.mts
 ver.mts
 inspect.mts
+.env*
+!.env.example
