@@ -3,12 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import OpenAI from "openai";
 import type { z } from "zod";
 
-
-import {
-  getAiConfig,
-  modelFrom,
-  type ProviderConfig,
-} from "./config";
+import { getAiConfig, modelFrom, type ProviderConfig } from "./config";
 import { PROVIDERS, type ProviderSpec, type Tier } from "./providers";
 
 export * from "./providers";
@@ -32,10 +27,25 @@ export class AiNotConfigured extends Error {
  * Vercel kills the function at sixty seconds, and a request that simply hangs
  * until then surfaces as FUNCTION_INVOCATION_TIMEOUT with no indication of
  * what went wrong. Free OpenRouter models in particular can sit in a shared
- * queue for minutes. Failing first, just under that ceiling, means the person
+ * queue for minutes. Failing first, well inside that ceiling, means the person
  * is told what happened and what to do about it.
+ *
+ * Forty seconds rather than fifty because the wait is not the whole budget:
+ * the entries have to be gathered before the request and the answer saved
+ * after it, and only a margin on top of the model's own time leaves room to
+ * return the explanation instead of being killed mid-sentence.
  */
-const DEFAULT_TIMEOUT_MS = 50_000;
+const DEFAULT_TIMEOUT_MS = 40_000;
+
+/**
+ * Never retry a model call.
+ *
+ * Both SDKs retry twice by default, which quietly turns one forty-second wait
+ * into two minutes — so a slow model could not fail cleanly at all: the retry
+ * ran past Vercel's ceiling and the function was killed before the timeout
+ * message could be returned. One attempt is all that fits in the budget.
+ */
+const MAX_RETRIES = 0;
 
 export type Ask = {
   system: string;
@@ -102,7 +112,10 @@ export async function askJson<T extends z.ZodType>(
 /* ---------------------------------------------------------------- claude --- */
 
 const claudeClient = (config: ProviderConfig) =>
-  new Anthropic({ apiKey: config.apiKey ?? undefined });
+  new Anthropic({
+    apiKey: config.apiKey ?? undefined,
+    maxRetries: MAX_RETRIES,
+  });
 
 /**
  * Haiku 4.5 rejects `output_config.effort`, and takes a thinking budget rather
@@ -199,6 +212,7 @@ function openaiClient(config: ProviderConfig): OpenAI {
     // Ollama needs no key but the SDK insists on a non-empty string.
     apiKey: config.apiKey ?? "local",
     baseURL: config.spec.baseUrl,
+    maxRetries: MAX_RETRIES,
   });
 }
 
@@ -239,9 +253,8 @@ async function openaiText(config: ProviderConfig, ask: Ask): Promise<Answer> {
      * thought therefore answers with nothing at all — which looked like an
      * empty response and gave no hint that the model was the problem.
      */
-    const reasoning = (
-      choice?.message as { reasoning?: string } | undefined
-    )?.reasoning;
+    const reasoning = (choice?.message as { reasoning?: string } | undefined)
+      ?.reasoning;
 
     if (reasoning && choice?.finish_reason === "length") {
       throw new Error(
@@ -339,7 +352,11 @@ async function openaiJsonCall(
 }
 
 /** A 404 from these providers means "no such model", which deserves saying. */
-function missingModel(spec: ProviderSpec, model: string, error: unknown): unknown {
+function missingModel(
+  spec: ProviderSpec,
+  model: string,
+  error: unknown,
+): unknown {
   if (error instanceof OpenAI.NotFoundError) {
     const hint =
       spec.id === "ollama"
@@ -395,10 +412,7 @@ function describeShape(schema: z.ZodType): string {
  * active provider now needs a database round trip and an error path should not
  * depend on the database being reachable.
  */
-export function aiErrorMessage(
-  error: unknown,
-  spec?: ProviderSpec,
-): string {
+export function aiErrorMessage(error: unknown, spec?: ProviderSpec): string {
   const who = spec?.label ?? "The provider";
 
   if (error instanceof AiNotConfigured) return error.message;
