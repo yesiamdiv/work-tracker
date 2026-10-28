@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from "react";
 
-import { askAboutEntries, type AskFilters } from "@/app/ai-actions";
+import {
+  askAboutEntries,
+  exportPrompt,
+  type AskFilters,
+} from "@/app/ai-actions";
 import { Alert, Button, Label, Meta, Textarea } from "@/components/ui";
 
 const EXAMPLES = [
@@ -34,6 +38,42 @@ export function AskPanel({
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [exporting, startExport] = useTransition();
+
+  /**
+   * Hands the assembled prompt over as a file, without sending it anywhere.
+   *
+   * The whole prompt is built server-side and downloaded as a Blob rather than
+   * fetched from a URL, so a question of any length works — a long one would
+   * not survive being put in a query string.
+   */
+  function download() {
+    if (exporting) return;
+    setError(null);
+    startExport(async () => {
+      const result = await exportPrompt({
+        filters,
+        question: question.trim() || undefined,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      const url = URL.createObjectURL(
+        new Blob([result.data.content], { type: "text/markdown" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = result.data.filename;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      setNote(
+        `Downloaded ${result.data.entries} entries, the system prompt and the question. Paste it into any assistant.`,
+      );
+    });
+  }
 
   function run(withQuestion: boolean) {
     if (pending) return;
@@ -98,6 +138,15 @@ export function AskPanel({
         >
           Or just summarise them
         </button>
+        <button
+          type="button"
+          onClick={download}
+          disabled={exporting || !matched}
+          title="The system prompt, the entries and your question, as a file"
+          className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-40"
+        >
+          {exporting ? "Preparing…" : "Download the prompt"}
+        </button>
         {!matched && <Meta>Nothing matches the filters above.</Meta>}
       </div>
 
@@ -116,7 +165,29 @@ export function AskPanel({
         </div>
       )}
 
-      {error && <Alert>{error}</Alert>}
+      {/*
+        A failure here is where the export earns its place: the work of
+        choosing the entries and writing the question is already done, and
+        should not be lost with the request that failed.
+      */}
+      {error && (
+        <Alert
+          action={
+            <button
+              type="button"
+              onClick={download}
+              disabled={exporting}
+              className="shrink-0 text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80 disabled:opacity-50"
+            >
+              {exporting ? "Preparing…" : "Download it instead"}
+            </button>
+          }
+        >
+          {error}
+        </Alert>
+      )}
+
+      {!answer && note && <Meta className="mt-3 block">{note}</Meta>}
 
       {answer && (
         <div className="mt-4 border-t border-line pt-3.5">

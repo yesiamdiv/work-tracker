@@ -396,11 +396,18 @@ function formatEntry(e: FeedEntry): string {
   return `${head}\n${e.body}`;
 }
 
-async function gatherFiltered(f: AskFilters) {
-  const [{ entries }, maxChars] = await Promise.all([
+/**
+ * @param cap characters to fit, or `null` for everything regardless of size —
+ *   used when exporting, where the destination is some other model whose
+ *   window we know nothing about and should not pre-emptively trim for.
+ */
+async function gatherFiltered(f: AskFilters, cap?: number | null) {
+  const [{ entries }, budget] = await Promise.all([
     feed(toFeedFilters(f)),
-    inputBudget(),
+    cap === undefined ? inputBudget() : Promise.resolve(cap ?? Infinity),
   ]);
+
+  const maxChars = cap === null ? Infinity : budget;
 
   // Oldest first: a narrative, and an answer about what changed, both read
   // forwards even though the page shows newest first.
@@ -501,6 +508,74 @@ export async function askAboutEntries(input: {
     }
 
     return { answer: text, used, dropped, truncated };
+  });
+}
+
+/**
+ * The exact prompt, as a file, without sending it anywhere.
+ *
+ * When the configured model fails — times out, runs out of output budget,
+ * reasons itself into silence — the work of assembling the question is still
+ * done and should not be lost with it. This hands over the whole thing to
+ * paste into any other assistant.
+ *
+ * Deliberately not subject to the provider's input budget: the destination is
+ * some other model whose context window we know nothing about, so trimming on
+ * its behalf would be guessing. Everything selected goes in.
+ */
+export async function exportPrompt(input: {
+  filters: AskFilters;
+  question?: string;
+}): Promise<AiResult<{ filename: string; content: string; entries: number }>> {
+  return guard(async () => {
+    const { lines, used, total } = await gatherFiltered(input.filters, null);
+    if (!lines.length) throw new Error("No entries match those filters.");
+
+    const scope = await describeFilters(input.filters);
+    const question = input.question?.trim();
+    const config = await getAiConfig();
+
+    const system = question ? ASK_SYSTEM : SUMMARY_SYSTEM;
+    const body = `${scope} — ${used} entries, oldest first.\n\n${lines.join("\n\n")}`;
+
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    const content = [
+      "# Work Tracker — exported prompt",
+      "",
+      `Exported: ${new Date().toISOString()}`,
+      `Selection: ${scope}`,
+      `Entries included: ${used}${total > used ? ` of ${total}` : ""}`,
+      `Configured model: ${config.activeId} / ${modelFrom(config.active, "standard")}`,
+      "",
+      "Paste the three sections below into any assistant. The system prompt is",
+      "the instruction this app would have used; the entries are the data; the",
+      "question is what was asked of them.",
+      "",
+      "---",
+      "",
+      "## System prompt",
+      "",
+      system,
+      "",
+      "---",
+      "",
+      "## Entries",
+      "",
+      body,
+      "",
+      "---",
+      "",
+      "## Question",
+      "",
+      question ?? "(no question — a summary of the entries above was requested)",
+      "",
+    ].join("\n");
+
+    return {
+      filename: `work-tracker-prompt-${stamp}.md`,
+      content,
+      entries: used,
+    };
   });
 }
 
