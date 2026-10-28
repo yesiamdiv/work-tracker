@@ -429,8 +429,15 @@ export function aiErrorMessage(error: unknown, spec?: ProviderSpec): string {
 
   if (error instanceof OpenAI.AuthenticationError)
     return `${who} rejected the API key. Check it under Settings.`;
+  /*
+   * A 429 from OpenRouter on a ":free" model is usually that model's shared
+   * capacity being busy, not anything to do with the account — the earlier
+   * wording sent someone to check a credit balance that was never the cause.
+   */
   if (error instanceof OpenAI.RateLimitError)
-    return `${who} rate limited the request, or the account is out of credit.`;
+    return spec?.id === "openrouter"
+      ? `${who} returned 429. On a ":free" model that usually means the model's shared capacity is busy rather than anything being wrong with your account — pick another model under Settings, or use a paid one. It can also be the free tier's daily request cap.`
+      : `${who} rate limited the request, or the account is out of credit.`;
   if (error instanceof OpenAI.APIConnectionTimeoutError)
     return `${who} did not answer in time. Free models often queue for minutes — try a faster one under Settings, or narrow the selection.`;
   if (error instanceof OpenAI.APIConnectionError)
