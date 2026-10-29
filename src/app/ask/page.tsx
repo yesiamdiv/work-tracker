@@ -1,9 +1,14 @@
 import Link from "next/link";
 
-import { countFiltered, savedAnswers, type AskFilters } from "@/app/ai-actions";
+import {
+  savedAnswers,
+  selectedEntries,
+  type AskFilters,
+} from "@/app/ai-actions";
 import { AiCompose } from "@/components/ai-compose";
 import { AnswerHistory } from "@/components/answer-history";
 import { AskPanel } from "@/components/ask-panel";
+import { FeedList } from "@/components/feed-list";
 import { StreamFilters } from "@/components/stream-filters";
 import { Meta, PageTitle, SectionLabel } from "@/components/ui";
 import { subjectOptions } from "@/db/feed";
@@ -37,15 +42,23 @@ export default async function AskPage({
     (p) => p.ready && p.spec.id !== active.id,
   );
 
-  const [subjects, matched, history] = await Promise.all([
+  const [subjects, entries, history] = await Promise.all([
     subjectOptions(),
-    ready ? countFiltered(filters) : Promise.resolve(0),
+    ready ? selectedEntries(filters) : Promise.resolve([]),
     savedAnswers(5),
   ]);
+  const matched = entries.length;
 
-  const filtered = Object.entries(filters).some(
-    ([k, v]) => v && k !== "page",
-  );
+  // The filters are the same parameters the Stream page reads, so the current
+  // selection is a link to it.
+  const query = new URLSearchParams(
+    Object.entries(filters).filter(([k, v]) => v && k !== "page") as [
+      string,
+      string,
+    ][],
+  ).toString();
+
+  const filtered = Object.entries(filters).some(([k, v]) => v && k !== "page");
 
   return (
     <>
@@ -76,7 +89,10 @@ export default async function AskPage({
           {active.label} is selected but has no API key yet.
           <Meta className="mt-2 block">
             Add one under{" "}
-            <Link href="/settings" className="extlink text-muted hover:text-text">
+            <Link
+              href="/settings"
+              className="extlink text-muted hover:text-text"
+            >
               Settings
             </Link>
             {others.length
@@ -120,6 +136,54 @@ export default async function AskPage({
             basePath="/ask"
             searchLabel="Only entries containing this text"
           />
+
+          <SectionLabel
+            hint="Opening this list costs nothing: counting the entries had already loaded them. The Stream page is a second query, which is why it is a choice rather than the default."
+            right={
+              <Link
+                href={query ? `/stream?${query}` : "/stream"}
+                target="_blank"
+                rel="noopener"
+                className="extlink text-[13px] text-muted hover:text-text"
+              >
+                Open as a page &#8599;
+              </Link>
+            }
+          >
+            What the assistant will read
+          </SectionLabel>
+
+          {/*
+            What the filters actually caught.
+            
+            Asking a question you cannot see the input to is guesswork, and the
+            entries cost nothing to show: counting them already loaded every
+            one. Closed by default because a wide selection runs to hundreds of
+            rows, and the point of the page is the question.
+          */}
+          <details className="group mb-6 rounded-xs border border-line">
+            <summary className="rowlink flex list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden
+                className="chev shrink-0 text-[17px] leading-none transition-transform group-open:rotate-90"
+              >
+                &rsaquo;
+              </span>
+              <span className="text-[13px] text-body">
+                {matched} {matched === 1 ? "entry" : "entries"} selected
+              </span>
+              <Meta>
+                {matched
+                  ? "the exact text the assistant reads"
+                  : "nothing matches these filters"}
+              </Meta>
+            </summary>
+            {matched > 0 && (
+              <div className="border-t border-line p-4">
+                <FeedList entries={entries} />
+              </div>
+            )}
+          </details>
 
           <div className="mb-10">
             <AskPanel filters={filters} matched={matched} filtered={filtered} />

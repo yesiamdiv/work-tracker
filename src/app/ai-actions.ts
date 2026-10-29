@@ -60,7 +60,9 @@ Rules:
 - Plain text. No markdown bold, no emoji.
 - If there is nothing of substance, say so in one line.`;
 
-export async function summarise(scope: SummaryScope): Promise<AiResult<string>> {
+export async function summarise(
+  scope: SummaryScope,
+): Promise<AiResult<string>> {
   // Every scope is expressible as a filter, so summaries and questions share
   // one gathering path — and the per-entry metadata with it.
   const filters: AskFilters =
@@ -162,7 +164,9 @@ const ProposalSchema = z.object({
         outcome: z.enum(events.outcome.enumValues).nullable(),
       }),
     )
-    .describe("Entries drawn only from the prompt. Empty if it describes none."),
+    .describe(
+      "Entries drawn only from the prompt. Empty if it describes none.",
+    ),
   notes: z.string().describe("One line on anything assumed or left out."),
 });
 
@@ -183,7 +187,8 @@ export async function proposeFromPrompt(
 ): Promise<AiResult<Proposal>> {
   return guard(async () => {
     const text = prompt.trim();
-    if (text.length < 10) throw new Error("Give it a sentence or two to work with.");
+    if (text.length < 10)
+      throw new Error("Give it a sentence or two to work with.");
 
     const existing = await withRetry("ai.subjects", () =>
       db
@@ -226,15 +231,12 @@ export async function acceptProposal(
   proposal: Proposal,
 ): Promise<AiResult<{ taskId: string }>> {
   return guard(async () => {
-    const { createSubject, createTask, captureEvent } = await import(
-      "@/app/actions"
-    );
+    const { createSubject, createTask, captureEvent } =
+      await import("@/app/actions");
 
     const byName = new Map(
       (
-        await db
-          .select({ id: subjects.id, name: subjects.name })
-          .from(subjects)
+        await db.select({ id: subjects.id, name: subjects.name }).from(subjects)
       ).map((s) => [s.name.toLowerCase(), s.id]),
     );
 
@@ -567,7 +569,8 @@ export async function exportPrompt(input: {
       "",
       "## Question",
       "",
-      question ?? "(no question — a summary of the entries above was requested)",
+      question ??
+        "(no question — a summary of the entries above was requested)",
       "",
     ].join("\n");
 
@@ -579,21 +582,24 @@ export async function exportPrompt(input: {
   });
 }
 
-/** How many entries the filters currently select, for the page to show. */
-export async function countFiltered(filters: AskFilters): Promise<number> {
+/**
+ * The entries the filters select — the same set the assistant is given.
+ *
+ * This used to return `entries.length` and discard the rest, which meant the
+ * page paid for every row, hydrated with its subjects, files and references,
+ * in order to print one number. Handing them back lets the page show what was
+ * selected for no further work: the query is the one it was already making.
+ */
+export async function selectedEntries(filters: AskFilters) {
   const { entries } = await feed(toFeedFilters(filters));
-  return entries.length;
+  return entries;
 }
 
 /* ------------------------------------------------------- saved answers --- */
 
 export async function savedAnswers(limit = 20) {
   return withRetry("savedAnswers", () =>
-    db
-      .select()
-      .from(answers)
-      .orderBy(desc(answers.createdAt))
-      .limit(limit),
+    db.select().from(answers).orderBy(desc(answers.createdAt)).limit(limit),
   );
 }
 
