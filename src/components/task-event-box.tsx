@@ -35,7 +35,7 @@ export function TaskEventBox({ taskId }: { taskId: string }) {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button onClick={c.submit} disabled={!c.canSave}>
+        <Button onClick={c.submit} busy={c.pending} disabled={!c.canSave}>
           {c.pending
             ? "Saving…"
             : c.staged.length

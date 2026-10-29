@@ -171,7 +171,7 @@ export function SubjectForm({
       {error && <p className="text-muted">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <Button onClick={submit} disabled={pending || !name.trim()}>
+        <Button onClick={submit} busy={pending} disabled={pending || !name.trim()}>
           {pending ? "Saving…" : initial ? "Save changes" : "Create"}
         </Button>
         <button

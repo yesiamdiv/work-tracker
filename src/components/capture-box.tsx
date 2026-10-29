@@ -105,7 +105,7 @@ export function CaptureBox({
 
         <span className="ml-auto flex items-center gap-3">
           {c.saved && !c.pending && <Meta className="text-muted">Saved</Meta>}
-          <Button onClick={c.submit} disabled={!c.canSave}>
+          <Button onClick={c.submit} busy={c.pending} disabled={!c.canSave}>
             {c.pending
               ? "Saving…"
               : c.staged.length

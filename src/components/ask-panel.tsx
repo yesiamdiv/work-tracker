@@ -126,6 +126,7 @@ export function AskPanel({
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <Button
           onClick={() => run(true)}
+          busy={pending}
           disabled={pending || !matched || !question.trim()}
         >
           {pending ? "Reading…" : "Ask"}
@@ -134,7 +135,7 @@ export function AskPanel({
           type="button"
           onClick={() => run(false)}
           disabled={pending || !matched}
-          className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-40"
+          className="qbtn"
         >
           Or just summarise them
         </button>
@@ -143,7 +144,7 @@ export function AskPanel({
           onClick={download}
           disabled={exporting || !matched}
           title="The system prompt, the entries and your question, as a file"
-          className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-40"
+          className="qbtn"
         >
           {exporting ? "Preparing…" : "Download the prompt"}
         </button>
@@ -177,7 +178,7 @@ export function AskPanel({
               type="button"
               onClick={download}
               disabled={exporting}
-              className="shrink-0 text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80 disabled:opacity-50"
+              className="shrink-0 qbtn-strong"
             >
               {exporting ? "Preparing…" : "Download it instead"}
             </button>

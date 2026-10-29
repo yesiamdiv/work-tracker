@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 
-import { Label, Meta } from "@/components/ui";
+import { Button, Input, Label, Meta } from "@/components/ui";
 import { KIND_LABEL } from "@/lib/capture";
 
 const KINDS = Object.entries(KIND_LABEL);
@@ -33,6 +33,12 @@ export function StreamFilters({
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
+  /*
+   * Every filter here is a navigation, and the page it loads is rendered on
+   * the server — so pressing Search, or changing a dropdown, sat still for as
+   * long as the query took. The transition gives that wait something to show.
+   */
+  const [pending, start] = useTransition();
 
   // Keep the box in step when the URL changes under us (back button, Clear all).
   useEffect(() => {
@@ -47,7 +53,7 @@ export function StreamFilters({
     }
     next.delete("page");
     const s = next.toString();
-    router.push(s ? `${basePath}?${s}` : basePath);
+    start(() => router.push(s ? `${basePath}?${s}` : basePath));
   }
 
   const selectCls =
@@ -63,24 +69,23 @@ export function StreamFilters({
       >
         <Label>{searchLabel}</Label>
         <div className="flex gap-2">
-          <input
+          <Input
             aria-label={searchLabel}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="e.g. reconnect, sleep current, ACME-4421"
-            className="w-full rounded-xs border border-line bg-raised px-3 py-2.5 text-body transition-colors focus:border-line-strong"
           />
-          <button
-            type="submit"
-            className="shrink-0 rounded-xs border border-line px-4 text-body transition-colors hover:border-line-strong hover:bg-raised hover:text-text"
-          >
+          <Button type="submit" busy={pending} className="shrink-0 px-4">
             Search
-          </button>
+          </Button>
         </div>
       </form>
 
       <div className="mt-4 border-t border-line pt-4">
-        <Label>Narrow it down</Label>
+        <Label>
+          Narrow it down
+          {pending && <span aria-hidden className="loadbar" />}
+        </Label>
         <div className="flex flex-wrap items-center gap-2.5">
           <select
             aria-label="Subject"

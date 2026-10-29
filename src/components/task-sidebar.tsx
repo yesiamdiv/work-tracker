@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { SubjectChip } from "@/db/queries";
 import { STALE_DAYS } from "@/db/stats";
 import { SubjectLinks } from "@/components/subject-link";
+import { LinkPending } from "@/components/link-pending";
 import { Meta } from "@/components/ui";
 import { ago } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,7 @@ export function TaskSidebar({
                     )}
                   >
                     {t.title}
+                    <LinkPending />
                   </Link>
 
                   {/*
@@ -166,7 +168,7 @@ export function TaskSidebar({
           type="button"
           onClick={() => setShowAll((v) => !v)}
           aria-expanded={showAll}
-          className="mt-2 text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text lg:hidden"
+          className="mt-2 qbtn lg:hidden"
         >
           {showAll ? "Show fewer" : `Show all ${tasks.length}`}
         </button>
@@ -178,7 +180,7 @@ export function TaskSidebar({
             type="button"
             onClick={() => setShowClosed((v) => !v)}
             aria-expanded={showClosed}
-            className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text"
+            className="qbtn"
           >
             {showClosed ? "Hide finished" : `Show ${closed.length} finished`}
           </button>

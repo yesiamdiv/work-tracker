@@ -63,7 +63,7 @@ export function AttachFiles({ eventId }: { eventId: string }) {
         {staged.length > 0 && !pending && (
           <button
             onClick={send}
-            className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80"
+            className="qbtn-strong"
           >
             Upload {staged.length} file{staged.length > 1 ? "s" : ""}
           </button>

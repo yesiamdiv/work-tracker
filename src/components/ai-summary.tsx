@@ -50,7 +50,7 @@ export function AiSummary({
           type="button"
           onClick={go}
           disabled={pending}
-          className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-50"
+          className="qbtn"
         >
           {pending ? "Thinking…" : text ? "Redo" : cta}
         </button>

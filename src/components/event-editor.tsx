@@ -158,7 +158,7 @@ export function EventEditor({
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-4">
-        <Button onClick={save} disabled={pending || !body.trim()}>
+        <Button onClick={save} busy={pending} disabled={pending || !body.trim()}>
           {pending
             ? "Saving…"
             : staged.length

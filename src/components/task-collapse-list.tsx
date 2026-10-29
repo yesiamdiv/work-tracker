@@ -69,7 +69,7 @@ export function TaskCollapseList({
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text"
+              className="qbtn"
             >
               Show {hidden} more task{hidden > 1 ? "s" : ""}
             </button>

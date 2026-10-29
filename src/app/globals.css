@@ -129,13 +129,176 @@ textarea {
   transition: background-color 120ms ease;
 }
 
-.rowlink:hover {
-  background-color: var(--color-raised);
+/*
+ * Hover is gated behind a device that has one.
+ *
+ * A phone reports hover on tap and then keeps it until you touch something
+ * else, so a row stayed lit long after the tap and the next row looked dead.
+ * Touch gets :active below instead, which is what a press actually is.
+ */
+@media (hover: hover) {
+  .rowlink:hover {
+    background-color: var(--color-raised);
+  }
+
+  .rowlink:hover /*
+ * A link that has been followed but not yet arrived.
+ *
+ * Narrow enough to sit beside a label without reflowing a row, and built from
+ * the same travelling hairline as a busy button so that waiting looks like
+ * one thing throughout.
+ */
+.loadbar {
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+    overflow: hidden;
+    width: 14px;
+    height: 1px;
+    margin-inline-start: 6px;
+    background: var(--color-line-strong);
+  }
+
+  .loadbar::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 50%;
+    background: var(--color-text);
+    animation: busyline 1s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loadbar::after {
+      width: 100%;
+      animation: none;
+    }
+  }
+
+  .chev {
+    color: var(--color-text);
+    transform: translateX(2px);
+  }
 }
 
-.rowlink:hover .chev {
+/*
+ * The press itself.
+ *
+ * Hover was the whole of this app's acknowledgement that a control exists,
+ * and a touch screen never delivers it: tapping anything looked identical to
+ * not tapping it. Everything now answers the finger, and brighter than hover
+ * so a press reads as firmer than a hesitation.
+ */
+.rowlink:active {
+  background-color: var(--color-raised-hi);
+}
+
+/*
+ * Deliberately replacing the browser's own tap flash rather than adding to
+ * it: the platforms disagree about its colour, shape and timing, and on a
+ * stretched-link row it lights the whole card at a corner radius of its own.
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):active,
+a:active {
   color: var(--color-text);
-  transform: translateX(2px);
+}
+
+/*
+ * The understated control: a button that reads as a link, for secondary
+ * actions sitting inside prose.
+ *
+ * Ten near-identical class strings had drifted across thirteen files — three
+ * different disabled opacities, four without a transition, and not one of
+ * them with a press state. One rule instead, so a secondary action feels the
+ * same wherever it appears.
+ */
+.qbtn,
+.qbtn-strong {
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition:
+    color 120ms ease,
+    text-decoration-color 120ms ease;
+}
+
+.qbtn {
+  color: var(--color-muted);
+  text-decoration-color: var(--color-line);
+}
+
+.qbtn-strong {
+  color: var(--color-text);
+  text-decoration-color: var(--color-line-strong);
+}
+
+@media (hover: hover) {
+  .qbtn:hover:not(:disabled),
+  .qbtn-strong:hover:not(:disabled) {
+    color: var(--color-text);
+    text-decoration-color: var(--color-accent);
+  }
+}
+
+.qbtn:active:not(:disabled),
+.qbtn-strong:active:not(:disabled) {
+  color: var(--color-text);
+  text-decoration-color: var(--color-accent);
+}
+
+.qbtn:disabled,
+.qbtn-strong:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration-color: var(--color-line);
+}
+
+/*
+ * Something is in flight.
+ *
+ * A travelling hairline rather than a spinner, because the rest of the app is
+ * drawn in hairlines — and because the only sign of a request in progress
+ * used to be a control going dim, which is exactly how an unavailable control
+ * looks. Dim means "you cannot"; this means "wait".
+ */
+@keyframes busyline {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.busy {
+  position: relative;
+  overflow: hidden;
+  cursor: progress;
+}
+
+.busy::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  height: 1px;
+  width: 25%;
+  background: var(--color-accent);
+  animation: busyline 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy::after {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .chev {

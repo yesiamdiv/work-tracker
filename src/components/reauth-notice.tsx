@@ -26,7 +26,7 @@ export function ReauthNotice({ message }: { message: string }) {
         <button
           type="button"
           onClick={() => signOut({ redirectTo: "/login" })}
-          className="shrink-0 text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80"
+          className="shrink-0 qbtn-strong"
         >
           Sign in again
         </button>

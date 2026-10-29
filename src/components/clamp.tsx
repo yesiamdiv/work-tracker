@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 /**
  * Hides anything past a fixed height, with a control to open it.
  *
@@ -84,10 +82,7 @@ export function Clamp({
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className={cn(
-            "mt-1.5 text-[13px] text-muted underline decoration-line underline-offset-[3px]",
-            "transition-colors hover:text-text",
-          )}
+          className="mt-1.5 qbtn"
         >
           {open ? lessLabel : moreLabel}
         </button>

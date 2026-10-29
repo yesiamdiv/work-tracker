@@ -58,7 +58,11 @@ export function AiCompose() {
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <Button onClick={propose} disabled={pending || saving || text.trim().length < 10}>
+        <Button
+          onClick={propose}
+          busy={pending}
+          disabled={pending || saving || text.trim().length < 10}
+        >
           {pending ? "Reading it…" : "Propose a setup"}
         </Button>
         <Meta>Nothing is saved until you approve it.</Meta>
@@ -130,7 +134,7 @@ export function AiCompose() {
           </dl>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
-            <Button onClick={accept} disabled={saving}>
+            <Button onClick={accept} busy={saving} disabled={saving}>
               {saving ? "Saving…" : "Save this"}
             </Button>
             <button

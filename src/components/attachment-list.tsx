@@ -150,7 +150,7 @@ export function AttachmentList({
                         })
                       }
                       disabled={pending}
-                      className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] disabled:opacity-50"
+                      className="qbtn-strong"
                     >
                       {pending ? "Removing…" : "Delete from Drive"}
                     </button>

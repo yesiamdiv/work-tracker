@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { signOut } from "@/auth";
+import { LinkPending } from "@/components/link-pending";
 import { authDisabled, getSession } from "@/lib/session";
 
 const links = [
@@ -39,6 +40,7 @@ export async function Nav() {
               className="rounded-xs px-1 py-0.5 text-body transition-colors hover:text-text"
             >
               {l.label}
+              <LinkPending />
             </Link>
           ))}
         </nav>

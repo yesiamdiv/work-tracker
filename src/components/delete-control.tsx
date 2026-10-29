@@ -79,7 +79,7 @@ export function DeleteControl({
         type="button"
         onClick={confirm}
         disabled={pending}
-        className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] transition-opacity hover:opacity-80 disabled:opacity-50"
+        className="qbtn-strong"
       >
         {pending ? "Deleting…" : "Yes, delete"}
       </button>

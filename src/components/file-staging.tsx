@@ -46,7 +46,7 @@ export function FileStaging({
         type="button"
         onClick={() => input.current?.click()}
         disabled={disabled}
-        className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-50"
+        className="qbtn"
       >
         Attach files
       </button>

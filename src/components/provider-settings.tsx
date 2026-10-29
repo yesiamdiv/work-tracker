@@ -68,7 +68,7 @@ function Row({ row }: { row: ProviderRow }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => chooseProvider(row.id))}
-              className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] disabled:opacity-50"
+              className="qbtn-strong"
             >
               Use this one
             </button>
@@ -78,7 +78,7 @@ function Row({ row }: { row: ProviderRow }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => testProvider(row.id))}
-              className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:opacity-50"
+              className="qbtn"
             >
               {pending ? "Testing…" : "Test"}
             </button>
@@ -119,6 +119,7 @@ function Row({ row }: { row: ProviderRow }) {
                   run(() => saveProviderKey(row.id, key));
                   setKey("");
                 }}
+                busy={pending}
                 disabled={pending || !key.trim()}
               >
                 Save key
@@ -158,6 +159,7 @@ function Row({ row }: { row: ProviderRow }) {
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <Button
               onClick={() => run(() => saveProviderModel(row.id, model))}
+              busy={pending}
               disabled={pending}
             >
               Save model

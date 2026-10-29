@@ -42,7 +42,7 @@ export function ImproveButton({
         onClick={go}
         disabled={pending || !ready}
         title={ready ? undefined : "Type a bit more first"}
-        className="text-[13px] text-muted underline decoration-line underline-offset-[3px] transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+        className="qbtn"
       >
         {pending ? "Improving…" : "Improve wording"}
       </button>
@@ -60,7 +60,7 @@ export function ImproveButton({
                 onAccept(suggestion);
                 setSuggestion(null);
               }}
-              className="text-[13px] text-text underline decoration-line-strong underline-offset-[3px] hover:opacity-80"
+              className="qbtn-strong"
             >
               Use it
             </button>

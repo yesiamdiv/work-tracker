@@ -99,24 +99,41 @@ export function Meta({
   title?: string;
 }) {
   return (
-    <span title={title} className={cn("text-[12.5px] text-faint tnum", className)}>
+    <span
+      title={title}
+      className={cn("text-[12.5px] text-faint tnum", className)}
+    >
       {children}
     </span>
   );
 }
 
+/**
+ * The primary control.
+ *
+ * `busy` is separate from `disabled` on purpose. A pending button used to be
+ * expressed by dimming it, which is the same thing an unavailable button does
+ * — so "working on it" and "you cannot press this" looked alike. Busy keeps
+ * its full brightness and carries a travelling hairline instead, and may be
+ * passed alongside `disabled` to stop a second press without going grey.
+ */
 export function Button({
   children,
   className,
+  busy,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { busy?: boolean }) {
   return (
     <button
       {...props}
+      aria-busy={busy || undefined}
       className={cn(
         "rounded-xs border border-line px-3.5 py-2 text-body transition-colors",
         "hover:border-line-strong hover:bg-raised hover:text-text",
+        // Firmer than hover, and a pixel down, so a press reads as a push.
+        "active:translate-y-px active:border-line-strong active:bg-raised-hi active:text-text",
         "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
+        busy && "busy disabled:cursor-progress disabled:opacity-100",
         className,
       )}
     >
