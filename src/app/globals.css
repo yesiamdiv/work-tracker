@@ -141,44 +141,49 @@ textarea {
     background-color: var(--color-raised);
   }
 
-  .rowlink:hover /*
+  .rowlink:hover .chev {
+    color: var(--color-text);
+    transform: translateX(2px);
+  }
+}
+
+/*
  * A link that has been followed but not yet arrived.
  *
  * Narrow enough to sit beside a label without reflowing a row, and built from
  * the same travelling hairline as a busy button so that waiting looks like
  * one thing throughout.
+ *
+ * The two rules below belong together: ::after is absolutely positioned, so
+ * without this element's `position: relative` it escapes to whatever ancestor
+ * happens to be positioned — or the viewport — and draws itself across the
+ * whole screen. Do not separate them.
  */
 .loadbar {
-    display: inline-block;
-    vertical-align: middle;
-    position: relative;
-    overflow: hidden;
-    width: 14px;
-    height: 1px;
-    margin-inline-start: 6px;
-    background: var(--color-line-strong);
-  }
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  overflow: hidden;
+  width: 14px;
+  height: 1px;
+  margin-inline-start: 6px;
+  background: var(--color-line-strong);
+}
 
+.loadbar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 50%;
+  background: var(--color-text);
+  animation: busyline 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
   .loadbar::after {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: 50%;
-    background: var(--color-text);
-    animation: busyline 1s ease-in-out infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .loadbar::after {
-      width: 100%;
-      animation: none;
-    }
-  }
-
-  .chev {
-    color: var(--color-text);
-    transform: translateX(2px);
+    width: 100%;
+    animation: none;
   }
 }
 
