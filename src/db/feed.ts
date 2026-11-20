@@ -11,33 +11,45 @@ import {
   tasks,
 } from "@/db/schema";
 import { subjectFilterIds } from "@/lib/subjects";
-
-/**
- * Ids arrive from the URL, where anything can be typed. Postgres rejects a
- * malformed uuid with an error rather than an empty result, so a hand-edited
- * link or a bookmark to a deleted subject would 500 the page — treat anything
- * that is not uuid-shaped as no filter at all.
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export function asUuid(value: string | undefined | null): string | undefined {
-  return value && UUID.test(value) ? value : undefined;
-}
+import { APP_TZ } from "@/lib/time";
 
 export type FeedFilters = {
   /** Free text over the entry body. */
   q?: string;
-  /** A subject; its children are included automatically. */
+  /**
+   * Subjects; each one's children are included automatically, and several are
+   * a union — "anything touching Acaas or Billing", which is how the work
+   * actually divides up.
+   */
+  subjectIds?: string[];
+  /** Tasks, as a union. */
+  taskIds?: string[];
+  kinds?: (typeof events.kind.enumValues)[number][];
+  outcomes?: (typeof events.outcome.enumValues)[number][];
+  /** Only entries that carry at least one external link. */
+  withRefs?: boolean;
+  /** Absolute instants. The callers build these from a date in {@link APP_TZ}. */
+  from?: Date;
+  to?: Date;
+  /**
+   * A window on the wall clock, `HH:MM`, applied to every day in range — so
+   * "the morning runs, over the last fortnight" is one query. Read in
+   * {@link APP_TZ}, because a time of day has no meaning without a zone.
+   *
+   * A window where the end is earlier than the start wraps midnight, which is
+   * what someone asking for 22:00–06:00 means.
+   */
+  clockFrom?: string;
+  clockTo?: string;
+  /** ISO weekdays, 1 = Monday … 7 = Sunday. Empty or all seven means no filter. */
+  daysOfWeek?: number[];
+  limit?: number;
+  offset?: number;
+  /** Convenience for the callers that only ever want one. */
   subjectId?: string;
   taskId?: string;
   kind?: (typeof events.kind.enumValues)[number];
   outcome?: (typeof events.outcome.enumValues)[number];
-  /** Only entries that carry at least one external link. */
-  withRefs?: boolean;
-  from?: Date;
-  to?: Date;
-  limit?: number;
-  offset?: number;
 };
 
 export type FeedEntry = {
@@ -88,15 +100,72 @@ export async function feed(filters: FeedFilters = {}) {
       where.push(or(ilike(events.body, term), ilike(tasks.title, term)));
     }
 
-    if (filters.taskId) where.push(eq(events.taskId, filters.taskId));
-    if (filters.kind) where.push(eq(events.kind, filters.kind));
-    if (filters.outcome) where.push(eq(events.outcome, filters.outcome));
+    // The singular forms are the same filter with one value in it.
+    const taskIds = [
+      ...new Set([...(filters.taskIds ?? []), filters.taskId].filter(Boolean)),
+    ] as string[];
+    const kinds = [
+      ...new Set([...(filters.kinds ?? []), filters.kind].filter(Boolean)),
+    ] as NonNullable<FeedFilters["kinds"]>;
+    const outcomes = [
+      ...new Set([...(filters.outcomes ?? []), filters.outcome].filter(Boolean)),
+    ] as NonNullable<FeedFilters["outcomes"]>;
+    const subjectIds = [
+      ...new Set([...(filters.subjectIds ?? []), filters.subjectId].filter(Boolean)),
+    ] as string[];
+
+    if (taskIds.length) where.push(inArray(events.taskId, taskIds));
+    if (kinds.length) where.push(inArray(events.kind, kinds));
+    if (outcomes.length) where.push(inArray(events.outcome, outcomes));
     if (filters.from) where.push(gte(events.occurredAt, filters.from));
     if (filters.to) where.push(lte(events.occurredAt, filters.to));
 
-    if (filters.subjectId) {
-      // Parent subjects include their children.
-      const ids = await subjectFilterIds(filters.subjectId);
+    /*
+     * The wall clock, in the app's zone.
+     *
+     * `AT TIME ZONE` turns the stored instant into the local reading, and the
+     * cast drops the date so only the time of day is compared. Neither can use
+     * the index on occurred_at, which is why the date range is kept as a plain
+     * comparison above: that one narrows, these two sieve what is left.
+     */
+    const localTime = sql`(${events.occurredAt} AT TIME ZONE ${APP_TZ})::time`;
+    const { clockFrom, clockTo } = filters;
+    if (clockFrom && clockTo) {
+      where.push(
+        clockFrom <= clockTo
+          ? and(
+              sql`${localTime} >= ${clockFrom}::time`,
+              sql`${localTime} <= ${clockTo}::time`,
+            )
+          : // Wraps midnight: late evening or early morning, not neither.
+            or(
+              sql`${localTime} >= ${clockFrom}::time`,
+              sql`${localTime} <= ${clockTo}::time`,
+            ),
+      );
+    } else if (clockFrom) {
+      where.push(sql`${localTime} >= ${clockFrom}::time`);
+    } else if (clockTo) {
+      where.push(sql`${localTime} <= ${clockTo}::time`);
+    }
+
+    const dows = filters.daysOfWeek?.filter((d) => d >= 1 && d <= 7) ?? [];
+    if (dows.length && dows.length < 7) {
+      where.push(
+        inArray(
+          sql`extract(isodow from ${events.occurredAt} AT TIME ZONE ${APP_TZ})::int`,
+          dows,
+        ),
+      );
+    }
+
+    if (subjectIds.length) {
+      // Parent subjects include their children, and several subjects union.
+      const expanded = [
+        ...new Set(
+          (await Promise.all(subjectIds.map((id) => subjectFilterIds(id)))).flat(),
+        ),
+      ];
       where.push(
         exists(
           db
@@ -105,7 +174,7 @@ export async function feed(filters: FeedFilters = {}) {
             .where(
               and(
                 eq(taskSubjects.taskId, events.taskId),
-                inArray(taskSubjects.subjectId, ids),
+                inArray(taskSubjects.subjectId, expanded),
               ),
             ),
         ),
@@ -250,5 +319,35 @@ export async function subjectOptions() {
       id: r.id,
       label: r.parentName ? `${r.parentName} / ${r.name}` : r.name,
     }));
+  });
+}
+
+/**
+ * Tasks for the filter picker, open ones first.
+ *
+ * The task filter existed in the query and in the URL but never in the UI: the
+ * only way to reach it was to click through from a task row, so "these two
+ * tasks, last Tuesday afternoon" could not be asked at all.
+ */
+export async function taskOptions() {
+  return withRetry("taskOptions", async () => {
+    const rows = await db
+      .select({
+        id: tasks.id,
+        title: tasks.title,
+        status: tasks.status,
+        lastActivityAt: tasks.lastActivityAt,
+      })
+      .from(tasks)
+      .orderBy(desc(tasks.lastActivityAt))
+      .limit(300);
+
+    // "done" and "abandoned" are the two that have stopped; the rest are live.
+    const isClosed = (s: (typeof rows)[number]["status"]) =>
+      s === "done" || s === "abandoned";
+    return [...rows.filter((r) => !isClosed(r.status)), ...rows.filter((r) => isClosed(r.status))].map(
+      // `muted` is what the picker calls a row it should dim and sort last.
+      (r) => ({ id: r.id, label: r.title, muted: isClosed(r.status) }),
+    );
   });
 }

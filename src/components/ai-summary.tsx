@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import type { AiResult } from "@/app/ai-actions";
 import { Button, Label, Meta } from "@/components/ui";
+import { APP_TZ } from "@/lib/time";
 
 /**
  * Asks for a summary on demand and shows it in place.
@@ -63,7 +64,7 @@ export function AiSummary({
           </div>
           <Meta className="mt-3 block">
             {stale && cachedAt
-              ? `Written ${new Date(cachedAt).toLocaleString("en-GB")} — redo to refresh`
+              ? `Written ${new Date(cachedAt).toLocaleString("en-GB", { timeZone: APP_TZ })} — redo to refresh`
               : "Written just now by Claude from your entries"}
           </Meta>
         </>

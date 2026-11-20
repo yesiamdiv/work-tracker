@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { APP_TZ, dayKey, shiftDay, todayKey } from "@/lib/time";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -21,13 +23,23 @@ export function ago(date: Date | string): string {
   return `${Math.floor(days / 365)}y`;
 }
 
+/*
+ * Every label below is rendered in the app's zone rather than the machine's.
+ *
+ * These run in server components, and the server is UTC — so east of
+ * Greenwich the whole log was shifted: an entry made at 21:00 was stamped
+ * 15:30 and filed under the following day\'s heading. The day a thing
+ * happened on is the day its own clock showed.
+ */
 const DAY_FMT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: APP_TZ,
   weekday: "short",
   day: "numeric",
   month: "short",
 });
 
 const TIME_FMT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: APP_TZ,
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
@@ -35,15 +47,10 @@ const TIME_FMT = new Intl.DateTimeFormat("en-GB", {
 
 export function dayLabel(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  const today = new Date();
-  const isSameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-  if (isSameDay(d, today)) return "Today";
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (isSameDay(d, yesterday)) return "Yesterday";
+  const key = dayKey(d);
+  const today = todayKey();
+  if (key === today) return "Today";
+  if (key === shiftDay(today, -1)) return "Yesterday";
   return DAY_FMT.format(d);
 }
 
@@ -56,7 +63,7 @@ export function byDay<T>(rows: T[], pick: (row: T) => Date | string) {
   const groups = new Map<string, { label: string; rows: T[] }>();
   for (const row of rows) {
     const d = new Date(pick(row) as string);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const key = dayKey(d);
     const group = groups.get(key) ?? { label: dayLabel(d), rows: [] };
     group.rows.push(row);
     groups.set(key, group);

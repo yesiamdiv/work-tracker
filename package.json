@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "setup": "tsx scripts/setup.ts"
+    "setup": "tsx scripts/setup.ts",
+    "check:filters": "tsx --env-file=.env.local scripts/check-filters.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

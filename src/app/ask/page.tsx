@@ -1,18 +1,22 @@
 import Link from "next/link";
 
-import {
-  savedAnswers,
-  selectedEntries,
-  type AskFilters,
-} from "@/app/ai-actions";
+import { savedAnswers, selectedEntries } from "@/app/ai-actions";
 import { AiCompose } from "@/components/ai-compose";
 import { AnswerHistory } from "@/components/answer-history";
 import { AskPanel } from "@/components/ask-panel";
 import { FeedList } from "@/components/feed-list";
-import { StreamFilters } from "@/components/stream-filters";
+import { FilterBar } from "@/components/filter-bar";
 import { Meta, PageTitle, SectionLabel } from "@/components/ui";
-import { subjectOptions } from "@/db/feed";
+import { subjectOptions, taskOptions } from "@/db/feed";
 import { getAiConfig } from "@/lib/ai";
+import {
+  activeCount,
+  describe,
+  type FilterParams,
+  parseFilters,
+  toParams,
+} from "@/lib/filters";
+import { APP_TZ } from "@/lib/time";
 
 /**
  * A big summary can take a while to generate, and Vercel kills a serverless
@@ -20,20 +24,13 @@ import { getAiConfig } from "@/lib/ai";
  */
 export const maxDuration = 60;
 
-/** Quick ranges, which are just the date filter pre-set. */
-const PRESETS = [
-  { label: "Today", days: "1" },
-  { label: "Last 7 days", days: "7" },
-  { label: "Last 30 days", days: "30" },
-  { label: "Last 90 days", days: "90" },
-];
-
 export default async function AskPage({
   searchParams,
 }: {
-  searchParams: Promise<AskFilters>;
+  searchParams: Promise<FilterParams>;
 }) {
-  const filters = await searchParams;
+  const sp = await searchParams;
+  const filters = parseFilters(sp);
   const config = await getAiConfig();
   const ready = config.active.ready;
   const active = config.active.spec;
@@ -42,23 +39,28 @@ export default async function AskPage({
     (p) => p.ready && p.spec.id !== active.id,
   );
 
-  const [subjects, entries, history] = await Promise.all([
+  /*
+   * The canonical form of the selection, which is what gets asked, shown and
+   * saved. Passing the raw address bar through would store whatever junk was
+   * in it on the answer, and that record is the only way a saved answer can be
+   * reopened months later.
+   */
+  const params = toParams(filters);
+  const query = params.toString();
+  const selection = Object.fromEntries(params.entries());
+  const filtered = activeCount(filters) > 0;
+
+  const [subjects, tasks, entries, history] = await Promise.all([
     subjectOptions(),
-    ready ? selectedEntries(filters) : Promise.resolve([]),
+    taskOptions(),
+    ready ? selectedEntries(selection) : Promise.resolve([]),
     savedAnswers(5),
   ]);
   const matched = entries.length;
-
-  // The filters are the same parameters the Stream page reads, so the current
-  // selection is a link to it.
-  const query = new URLSearchParams(
-    Object.entries(filters).filter(([k, v]) => v && k !== "page") as [
-      string,
-      string,
-    ][],
-  ).toString();
-
-  const filtered = Object.entries(filters).some(([k, v]) => v && k !== "page");
+  const names = {
+    subjects: new Map(subjects.map((x) => [x.id, x.label])),
+    tasks: new Map(tasks.map((x) => [x.id, x.label])),
+  };
 
   return (
     <>
@@ -106,35 +108,12 @@ export default async function AskPage({
             Choose what to ask about
           </SectionLabel>
 
-          {/* Presets are just the date filter, which is the one people reach for. */}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {PRESETS.map((p) => (
-              <Link
-                key={p.days}
-                href={`/ask?days=${p.days}`}
-                className={`rounded-xs border px-2.5 py-1 text-[13px] transition-colors ${
-                  filters.days === p.days
-                    ? "border-accent bg-raised text-text"
-                    : "border-line text-muted hover:border-line-strong hover:bg-raised hover:text-text"
-                }`}
-              >
-                {p.label}
-              </Link>
-            ))}
-            {filtered && (
-              <Link
-                href="/ask"
-                className="extlink ml-1 text-[13px] text-faint hover:text-text"
-              >
-                Clear all
-              </Link>
-            )}
-          </div>
-
-          <StreamFilters
+          <FilterBar
             subjects={subjects}
+            tasks={tasks}
             basePath="/ask"
             searchLabel="Only entries containing this text"
+            tz={APP_TZ}
           />
 
           <SectionLabel
@@ -172,9 +151,12 @@ export default async function AskPage({
               <span className="text-[13px] text-body">
                 {matched} {matched === 1 ? "entry" : "entries"} selected
               </span>
-              <Meta>
+              {/* The selection in words — the same sentence the model is told. */}
+              <Meta className="min-w-0">
                 {matched
-                  ? "the exact text the assistant reads"
+                  ? filtered
+                    ? `${describe(filters, names, APP_TZ)}`
+                    : "the exact text the assistant reads"
                   : "nothing matches these filters"}
               </Meta>
             </summary>
@@ -186,7 +168,7 @@ export default async function AskPage({
           </details>
 
           <div className="mb-10">
-            <AskPanel filters={filters} matched={matched} filtered={filtered} />
+            <AskPanel filters={selection} matched={matched} filtered={filtered} />
           </div>
 
           <SectionLabel

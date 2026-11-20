@@ -1,13 +1,13 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
 import { withRetry } from "@/db/retry";
 import { answers, events, refs, subjects, tasks } from "@/db/schema";
-import { asUuid, feed, type FeedEntry, type FeedFilters } from "@/db/feed";
+import { feed, type FeedEntry } from "@/db/feed";
 import {
   aiErrorMessage,
   askAnswer,
@@ -17,6 +17,14 @@ import {
   modelFrom,
 } from "@/lib/ai";
 import { KIND_LABEL } from "@/lib/capture";
+import {
+  describe,
+  type FilterParams,
+  type Filters,
+  parseFilters,
+  toFeedFilters,
+} from "@/lib/filters";
+import { APP_TZ } from "@/lib/time";
 import { getSession } from "@/lib/session";
 import { subjectFilterIds } from "@/lib/subjects";
 
@@ -287,15 +295,12 @@ export async function acceptProposal(
  * The filters as they arrive from the URL — strings, so the whole thing
  * crosses the server-action boundary without needing Dates rehydrated.
  */
-export type AskFilters = {
-  q?: string;
-  subject?: string;
-  kind?: string;
-  outcome?: string;
-  refs?: string;
-  days?: string;
-  task?: string;
-};
+/**
+ * The assistant is scoped by exactly the filters the Stream page uses, so the
+ * two pages cannot disagree about what a selection means — and a saved answer
+ * records a selection that can still be reopened.
+ */
+export type AskFilters = FilterParams;
 
 /**
  * How much of the log goes in front of the model.
@@ -315,51 +320,44 @@ async function inputBudget(): Promise<number> {
   return active.spec.limits.inputChars;
 }
 
-function toFeedFilters(f: AskFilters): FeedFilters {
-  const days = Number(f.days ?? 0) || 0;
-  return {
-    q: f.q,
-    subjectId: asUuid(f.subject),
-    taskId: asUuid(f.task),
-    kind: events.kind.enumValues.includes(f.kind as never)
-      ? (f.kind as FeedFilters["kind"])
-      : undefined,
-    outcome: events.outcome.enumValues.includes(f.outcome as never)
-      ? (f.outcome as FeedFilters["outcome"])
-      : undefined,
-    withRefs: f.refs === "1",
-    from: days ? new Date(Date.now() - days * 86_400_000) : undefined,
-    limit: 200,
-  };
+
+/** How much of the log a question is allowed to look at. */
+const ASK_LIMIT = 200;
+
+function askFeed(f: AskFilters) {
+  return feed(toFeedFilters(parseFilters(f), { limit: ASK_LIMIT }));
 }
 
-/** Says in words what the filters select, so the model knows the scope. */
-async function describeFilters(f: AskFilters): Promise<string> {
-  const parts: string[] = [];
-  if (f.q) parts.push(`matching "${f.q}"`);
-  const subjectId = asUuid(f.subject);
-  if (subjectId) {
-    const [s] = await db
-      .select({ name: subjects.name })
-      .from(subjects)
-      .where(eq(subjects.id, subjectId))
-      .limit(1);
-    if (s) parts.push(`about ${s.name} (including its parts)`);
-  }
-  const taskId = asUuid(f.task);
-  if (taskId) {
-    const [t] = await db
-      .select({ title: tasks.title })
-      .from(tasks)
-      .where(eq(tasks.id, taskId))
-      .limit(1);
-    if (t) parts.push(`on the task "${t.title}"`);
-  }
-  if (f.kind) parts.push(`of kind ${f.kind.replace(/_/g, " ")}`);
-  if (f.outcome) parts.push(`with outcome ${f.outcome}`);
-  if (f.refs === "1") parts.push("that carry a link");
-  if (f.days) parts.push(`from the last ${f.days} days`);
-  return parts.length ? `Entries ${parts.join(", ")}` : "All entries";
+/**
+ * Says in words what the filters select, so the model knows its scope.
+ *
+ * The names are looked up only for the ids actually chosen, rather than
+ * loading every subject and task to label two of them.
+ */
+async function scopeText(f: Filters): Promise<string> {
+  const [subjectRows, taskRows] = await Promise.all([
+    f.subjectIds.length
+      ? db
+          .select({ id: subjects.id, name: subjects.name })
+          .from(subjects)
+          .where(inArray(subjects.id, f.subjectIds))
+      : Promise.resolve([]),
+    f.taskIds.length
+      ? db
+          .select({ id: tasks.id, title: tasks.title })
+          .from(tasks)
+          .where(inArray(tasks.id, f.taskIds))
+      : Promise.resolve([]),
+  ]);
+
+  return describe(
+    f,
+    {
+      subjects: new Map(subjectRows.map((r) => [r.id, r.name])),
+      tasks: new Map(taskRows.map((r) => [r.id, r.title])),
+    },
+    APP_TZ,
+  );
 }
 
 /**
@@ -405,7 +403,7 @@ function formatEntry(e: FeedEntry): string {
  */
 async function gatherFiltered(f: AskFilters, cap?: number | null) {
   const [{ entries }, budget] = await Promise.all([
-    feed(toFeedFilters(f)),
+    askFeed(f),
     cap === undefined ? inputBudget() : Promise.resolve(cap ?? Infinity),
   ]);
 
@@ -473,7 +471,7 @@ export async function askAboutEntries(input: {
       );
     }
 
-    const scope = await describeFilters(input.filters);
+    const scope = await scopeText(parseFilters(input.filters));
     const question = input.question?.trim();
 
     const config = await getAiConfig();
@@ -533,7 +531,7 @@ export async function exportPrompt(input: {
     const { lines, used, total } = await gatherFiltered(input.filters, null);
     if (!lines.length) throw new Error("No entries match those filters.");
 
-    const scope = await describeFilters(input.filters);
+    const scope = await scopeText(parseFilters(input.filters));
     const question = input.question?.trim();
     const config = await getAiConfig();
 
@@ -591,7 +589,7 @@ export async function exportPrompt(input: {
  * selected for no further work: the query is the one it was already making.
  */
 export async function selectedEntries(filters: AskFilters) {
-  const { entries } = await feed(toFeedFilters(filters));
+  const { entries } = await askFeed(filters);
   return entries;
 }
 
